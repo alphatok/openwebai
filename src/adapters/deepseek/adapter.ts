@@ -15,15 +15,27 @@ export class DeepSeekAdapter extends BaseAdapter {
     await super.init(page)
   }
 
-  /** Check login status in real-time (each call re-checks the page) */
+  /** Check login status by detecting positive indicators (chat input area) */
   override async isReady(): Promise<boolean> {
     if (!super.isReady()) return false
     if (!this.page) return false
 
     try {
-      const loginBtn = await this.page.$('button:has-text("登录"), button:has-text("Login"), button:has-text("登录")')
-      return !loginBtn
-    } catch {
+      // Positive check: if chat input exists, assume logged in
+      const chatInput = await this.page.$(this.config.selectors.input)
+      if (chatInput) return true
+
+      // Negative check: login button visible = not logged in
+      const loginBtn = await this.page.$('button:has-text("登录"), [class*="login"], [class*="Login"]')
+      if (loginBtn) {
+        console.log('[DeepSeekAdapter] Login button detected — not logged in yet')
+        return false
+      }
+
+      // Fallback: assume ready if no obvious login gate
+      return true
+    } catch (err) {
+      console.warn('[DeepSeekAdapter] Login check error:', err instanceof Error ? err.message : err)
       return false
     }
   }
