@@ -9,20 +9,23 @@ export class DeepSeekAdapter extends BaseAdapter {
   readonly siteId = 'deepseek'
   readonly config: SiteConfig = configJson as unknown as SiteConfig
 
-  private _loggedIn = false
+  // Login status is checked dynamically on every request (not cached)
 
   async init(page: Page): Promise<void> {
     await super.init(page)
-    // Detect login status: if no login button found, assume logged in
-    const loginBtn = await page.$('button:has-text("登录"), button:has-text("Login")')
-    this._loggedIn = !loginBtn
-    if (!this._loggedIn) {
-      console.log('[DeepSeekAdapter] Not logged in. Please log in browser first.')
-    }
   }
 
-  override isReady(): boolean {
-    return super.isReady() && this._loggedIn
+  /** Check login status in real-time (each call re-checks the page) */
+  override async isReady(): Promise<boolean> {
+    if (!super.isReady()) return false
+    if (!this.page) return false
+
+    try {
+      const loginBtn = await this.page.$('button:has-text("登录"), button:has-text("Login"), button:has-text("登录")')
+      return !loginBtn
+    } catch {
+      return false
+    }
   }
 
   /** Input text into the chat box */

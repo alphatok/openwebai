@@ -102,8 +102,8 @@ export class CDPDriver {
         await adapter.init(page)
       }
 
-      // Check readiness (logged in)
-      if (!adapter.isReady()) {
+      // Check readiness (logged in) - real-time check
+      if (!(await adapter.isReady())) {
         return {
           taskId: task.taskId,
           status: 'failed',

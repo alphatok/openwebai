@@ -21,7 +21,7 @@ export abstract class BaseAdapter implements ISiteAdapter {
   }
 
   /** Whether adapter is ready (login status determined by subclass) */
-  isReady(): boolean {
+  isReady(): boolean | Promise<boolean> {
     return this._ready
   }
 

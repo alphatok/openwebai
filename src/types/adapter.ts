@@ -23,7 +23,7 @@ export interface ISiteAdapter {
   readonly config: SiteConfig
 
   init(page: Page): Promise<void>
-  isReady(): boolean
+  isReady(): boolean | Promise<boolean>
   inputText(prompt: string): Promise<void>
   clickSubmit(): Promise<void>
   waitForCompletion(): Promise<void>
