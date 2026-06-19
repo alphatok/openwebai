@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWebAI - Setup Guide</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <h1>OpenWebAI</h1>
+  <p class="subtitle" data-i18n="subtitle">Turn web AI chat into local OpenAI-compatible API</p>
+
+  <div class="lang-toggle">
+    <button id="btnEn" class="active" onclick="setLang('en')">EN</button>
+    <button id="btnZh" onclick="setLang('zh')">中文</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <span data-i18n="status">Server running at <code>http://localhost:3000</code></span>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="step">
+    <span class="step-num">1</span>
+    <h3 data-i18n="step1_title">Log in to DeepSeek</h3>
+    <p data-i18n="step1_desc">A Chrome window should have opened with <code>chat.deepseek.com</code>.<br>
+       Log in with your account. Login state is saved across sessions.</p>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step">
+    <span class="step-num">2</span>
+    <h3 data-i18n="step2_title">Test the connection</h3>
+    <p data-i18n="step2_desc">Click below to send a test message to DeepSeek.</p>
+    <button class="btn" id="testBtn" onclick="runTest()" data-i18n="step2_btn">Run Test</button>
+    <div id="testResult" class="test-result"></div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step">
+    <span class="step-num">3</span>
+    <h3 data-i18n="step3_title">Connect your AI client (optional)</h3>
+    <p data-i18n="step3_desc">Use any OpenAI-compatible client by setting:</p>
+    <pre><code>Base URL: http://localhost:3000/v1
+Model:     deepseek
+API Key:    (leave empty)</code></pre>
+    <p style="padding-left:40px;margin-top:8px;" data-i18n="step3_clients">
+      Works with: ChatGPT-Next-Web, LobeChat, Continue, Cursor, etc.
+    </p>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step">
+    <span class="step-num">4</span>
+    <h3 data-i18n="step4_title">Use via curl / API</h3>
+    <pre><code># Health check
+curl http://localhost:3000/health
+
+# Chat (non-streaming)
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"deepseek","messages":[{"role":"user","content":"Hello!"}]}'</code></pre>
+  </div>
+
+  <!-- API Reference -->
+  <div class="api-section">
+    <h2 data-i18n="api_title">API Endpoints</h2>
+    <div class="api-card">
+      <h4>GET /health</h4>
+      <p data-i18n="api_health">Health check - returns {"status":"ok"}</p>
+    </div>
+    <div class="api-card">
+      <h4>GET /v1/models</h4>
+      <p data-i18n="api_models">List available models (OpenAI-compatible)</p>
+    </div>
+    <div class="api-card">
+      <h4>POST /v1/chat/completions</h4>
+      <p data-i18n="api_chat">Chat completion (OpenAI-compatible). Supports stream:true for SSE.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    OpenWebAI v0.1.0 &mdash; <a href="https://github.com/alphatok/openwebai">GitHub</a>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
