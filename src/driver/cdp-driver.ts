@@ -100,13 +100,16 @@ export class CDPDriver {
     }
 
     try {
-      // Initialize adapter if not yet done
       const page = this.managedPage.page
+
+      // Ensure adapter is initialized with current page (idempotent)
+      await adapter.init(page)
 
       // Navigate to target site if not already there
       const currentUrl = page.url()
       if (!currentUrl.includes(adapter.config.url.replace('https://', '').replace('http://', ''))) {
-        await adapter.init(page)
+        await page.goto(adapter.config.url, { waitUntil: 'domcontentloaded' })
+        await page.waitForLoadState('networkidle')
       }
 
       // Execute the task — let operation fail naturally if not logged in
