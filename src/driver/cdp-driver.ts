@@ -109,18 +109,8 @@ export class CDPDriver {
         await adapter.init(page)
       }
 
-      // Check readiness (logged in) - real-time check
-      if (!(await adapter.isReady())) {
-        return {
-          taskId: task.taskId,
-          status: 'failed',
-          error: {
-            code: 'AUTH_FAILED',
-            message: `${adapter.siteId} not logged in. Please log in browser.`,
-            recoverable: true,
-          },
-        }
-      }
+      // Execute the task — let operation fail naturally if not logged in
+      // (selector errors will provide clear diagnostics)
 
       // Execute conversation flow
       console.log(`[CDPDriver] Executing task ${task.taskId}: "${task.prompt.slice(0, 50)}..."`)
