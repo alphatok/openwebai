@@ -1,65 +1,54 @@
-import type { Page, Route } from 'playwright'
+import type { Page } from 'playwright'
 import { BaseAdapter } from '../base-adapter.js'
 import type { SiteConfig } from '../../types/adapter.js'
 import { AdapterError } from '../../errors/adapter-error.js'
 import configJson from './config.json' with { type: 'json' }
 
 /**
- * DeepSeek site adapter — transparent SSE proxy.
- * Intercepts only the chat completion SSE endpoint via page.route(),
- * reads the full response body, captures it, then fulfills back to page.
- * All other requests pass through untouched via route.continue().
+ * DeepSeek site adapter.
+ * Strategy: observe the page's SSE request via page.on('request'),
+ * then make a parallel Node.js fetch() to read the FULL SSE body.
+ * The page's own request passes through untouched.
  */
 export class DeepSeekAdapter extends BaseAdapter {
   readonly siteId = 'deepseek'
   readonly config: SiteConfig = configJson as unknown as SiteConfig
 
   private capturedContent = ''
-  private routeHandlerInstalled = false
+  private sseUrl: string | null = null
+  private sseBody: string | null = null
+  private sseMethod = 'POST'
+  private sseHeaders: Record<string, string> = {}
+  private monitoring = false
 
   async init(page: Page): Promise<void> {
     await super.init(page)
-    // Install interception once per session
-    if (!this.routeHandlerInstalled) {
-      await this.installRouteHandler(page)
-      this.routeHandlerInstalled = true
+    if (!this.monitoring) {
+      this.observeRequests(page)
+      this.monitoring = true
     }
   }
 
-  /** Install persistent route handler — only intercepts chat/completion SSE */
-  private async installRouteHandler(page: Page): Promise<void> {
-    await page.route('**/*', async (route: Route) => {
-      const url = route.request().url()
+  /** Observe page.on('request') to capture the SSE URL + headers for parallel fetch */
+  private observeRequests(page: Page): void {
+    page.on('request', async (request) => {
+      const url = request.url()
+      if (!url.includes('deepseek.com') || !url.includes('/chat/completion')) return
 
-      // Only intercept the chat/completion SSE endpoint
-      if (url.includes('deepseek.com') && url.includes('/chat/completion')) {
-        console.log(`[DeepSeekAdapter] Proxying SSE: ${url.slice(0, 80)}...`)
+      console.log(`[DeepSeekAdapter] Observed SSE request: ${url.slice(0, 80)}...`)
 
-        try {
-          // Fetch the real response (Playwright internally reads the full stream)
-          const response = await route.fetch()
-          const contentType = response.headers()['content-type'] || ''
+      const cookies = await page.context().cookies()
+      const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
 
-          if (contentType.includes('text/event-stream') || contentType.includes('text/plain')) {
-            // Read full SSE body — .text() waits for stream completion
-            const body = await response.text()
-            this.parseSSEBody(body)
-          }
-
-          // Fulfill the page's request with the real response (a few ms delay at most)
-          await route.fulfill({ response })
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          console.error(`[DeepSeekAdapter] Proxy error: ${message}`)
-          await route.continue().catch(() => {})
-        }
-      } else {
-        // Pass through all other requests untouched
-        await route.continue()
+      this.sseUrl = url
+      this.sseMethod = request.method()
+      this.sseHeaders = {
+        ...request.headers(),
+        'Cookie': cookieStr,
+        'Accept': 'text/event-stream',
       }
+      this.sseBody = request.postData() || null
     })
-
-    console.log('[DeepSeekAdapter] Route handler installed (intercepting /chat/completion SSE only)')
   }
 
   async inputText(prompt: string): Promise<void> {
@@ -91,11 +80,12 @@ export class DeepSeekAdapter extends BaseAdapter {
     }
   }
 
-  /** Parse SSE body, extracting delta.content from each data: line */
-  private parseSSEBody(body: string): void {
-    console.log(`[DeepSeekAdapter] Raw SSE body (${body.length} chars):\n${body.slice(0, 500)}\n---`)
-
+  /** Parse DeepSeek-specific SSE format */
+  private parseDeepSeekSSE(body: string): string {
     const lines = body.split('\n')
+    let result = ''
+    let lastFragmentContent = ''
+
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue
       const jsonStr = line.slice(6).trim()
@@ -103,35 +93,89 @@ export class DeepSeekAdapter extends BaseAdapter {
 
       try {
         const chunk = JSON.parse(jsonStr)
-        const delta = chunk?.choices?.[0]?.delta?.content
-        if (delta) {
-          this.capturedContent += delta
-          console.log(`[DeepSeekAdapter] delta: "${delta.slice(0, 60)}" (total: ${this.capturedContent.length})`)
+
+        // DeepSeek format: v.response.fragments[].content (type=RESPONSE)
+        const fragments = chunk?.v?.response?.fragments as Array<{
+          type: string
+          content: string
+        }> | undefined
+
+        if (fragments) {
+          for (const f of fragments) {
+            if (f.type === 'RESPONSE' || f.type === 'TEXT') {
+              // Only take the latest complete fragment
+              lastFragmentContent = f.content || ''
+            }
+          }
         }
-        // Fallback for other JSON formats
-        const alt = chunk?.content || chunk?.message?.content
-        if (alt && !delta) this.capturedContent += alt
+
+        // Fallback: check OpenAI-style format too
+        const delta = chunk?.choices?.[0]?.delta?.content
+        if (delta) result += delta
       } catch {
-        // Non-JSON data line (e.g. pings), ignore
+        // Non-JSON
       }
     }
 
-    console.log(`[DeepSeekAdapter] SSE capture done: ${this.capturedContent.length} chars total`)
+    // Use the last complete fragment content, or accumulated deltas
+    if (lastFragmentContent) return lastFragmentContent
+    if (result) return result
+    return ''
   }
 
   async waitForCompletion(): Promise<void> {
     if (!this.page) throw new AdapterError('PAGE_CLOSED', 'Page not initialized', false)
 
-    // Since route interception reads the full SSE body synchronously,
-    // by the time clickSubmit returns and we enter waitForCompletion,
-    // the SSE body may already be captured (or still arriving).
-    // We poll for content to arrive and stabilize.
     const timeout = this.config.behavior.waitTimeoutMs
-    const interval = this.config.behavior.pollIntervalMs
     const start = Date.now()
 
+    // Wait a moment for the SSE URL to be observed (page.on('request') is async)
+    while (!this.sseUrl && Date.now() - start < 5000) {
+      await this.sleep(200)
+    }
+
+    if (!this.sseUrl) {
+      // Fallback: use last known SSE URL attempt
+      console.warn('[DeepSeekAdapter] SSE URL not observed after 5s - retrying with last request')
+      // Try to find it from CDP
+      if (this.page) {
+        try {
+          const cdp = await this.page.context().newCDPSession(this.page)
+          const requests = await cdp.send('Network.getResponseBody', { requestId: '' }).catch(() => null)
+          await cdp.detach()
+          if (!requests) {
+            // If all else fails, just wait with empty content check below
+          }
+        } catch { /* continue */ }
+      }
+    }
+
+    if (this.sseUrl) {
+      console.log(`[DeepSeekAdapter] Fetching SSE in parallel: ${this.sseUrl.slice(0, 80)}...`)
+
+      try {
+        const resp = await fetch(this.sseUrl, {
+          method: this.sseMethod,
+          headers: this.sseHeaders,
+          body: this.sseBody || undefined,
+        })
+
+        const body = await resp.text()
+        console.log(`[DeepSeekAdapter] Parallel fetch got ${body.length} chars`)
+
+        this.capturedContent = this.parseDeepSeekSSE(body)
+        console.log(`[DeepSeekAdapter] Parsed content: ${this.capturedContent.slice(0, 100)}...`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[DeepSeekAdapter] Parallel fetch error: ${msg}`)
+      }
+    }
+
+    // Wait for content to arrive
+    const interval = this.config.behavior.pollIntervalMs
     while (Date.now() - start < timeout) {
       if (this.capturedContent.length > 0) {
+        // Content captured — wait for it to stabilize (in case some still arriving)
         let prev = this.capturedContent.length
         let stable = 0
 
@@ -147,7 +191,9 @@ export class DeepSeekAdapter extends BaseAdapter {
       await this.sleep(interval)
     }
 
-    console.warn('[DeepSeekAdapter] waitForCompletion timed out')
+    if (this.capturedContent.length === 0) {
+      console.warn('[DeepSeekAdapter] waitForCompletion timed out with no content')
+    }
   }
 
   async extractOutput(_prompt?: string): Promise<string> {
