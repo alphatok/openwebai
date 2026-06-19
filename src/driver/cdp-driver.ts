@@ -60,7 +60,10 @@ export class CDPDriver {
     this.context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chrome',
       headless: false,
-      args: ['--disable-blink-features=AutomationControlled'],
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--remote-debugging-port=9222',
+      ],
     })
 
     // Persistent context provides pages directly
