@@ -47,6 +47,10 @@ export type AdapterErrorCode =
   | 'AUTH_FAILED'
   | 'NETWORK'
   | 'PAGE_CLOSED'
+  | 'RELAY_NOT_SET'
+  | 'BROWSER_NOT_CONNECTED'
+  | 'COMMAND_TIMEOUT'
+  | 'COMMAND_FAILED'
 
 /** Browser task (internal use by scheduler) */
 export interface BrowserTask {

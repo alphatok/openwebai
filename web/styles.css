@@ -198,6 +198,27 @@ pre code {
   cursor: not-allowed;
 }
 
+.btn-debug {
+  display: inline-block;
+  padding: 10px 24px;
+  border-radius: var(--radius-md);
+  background: #1e1e30;
+  color: #a78bfa;
+  border: 1px solid #3b2f6e;
+  margin-left: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.btn-debug:hover {
+  background: #2a2a4a;
+  opacity: 1;
+}
+
 /* ===== Test Result ===== */
 .test-result {
   margin-top: 12px;

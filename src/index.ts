@@ -6,11 +6,8 @@ const PORT = Number(process.env.PORT) || 3000
 async function main() {
   console.log('[openwebai] Starting...')
 
-  // Assemble all modules
-  const { app, driver } = await createApp()
-
-  // Launch browser driver (auto-navigates to target site)
-  await driver.launch()
+  // Create app with relay
+  const { app, relay } = await createApp()
 
   // Start API server
   await app.listen({ host: '0.0.0.0', port: PORT })
@@ -19,8 +16,11 @@ async function main() {
   console.log('[openwebai] OpenAI-compatible API: POST /v1/chat/completions')
   console.log('[openwebai] Models list: GET /v1/models')
   console.log('[openwebai] Setup guide: http://localhost:${PORT}/')
+  console.log('[openwebai] WebSocket relay: ws://localhost:18765')
+  console.log('[openwebai] Chrome extension: extension/ (load unpacked in chrome://extensions)')
   console.log('')
-  console.log('[openwebai] >>> Opening setup guide in browser... <<<')
+  console.log('[openwebai] Waiting for browser extension connection...')
+  console.log('[openwebai] >>> Please open DeepSeek in Chrome and ensure extension is loaded <<<')
 
   // Auto-open setup guide page
   try {
@@ -41,8 +41,8 @@ async function main() {
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`\n[openwebai] Received ${signal}, shutting down...`)
+    await relay.stop()
     await app.close()
-    await driver.close()
     process.exit(0)
   }
 

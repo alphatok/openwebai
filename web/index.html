@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,8 +11,8 @@
   <p class="subtitle" data-i18n="subtitle">Turn web AI chat into local OpenAI-compatible API</p>
 
   <div class="lang-toggle">
-    <button id="btnEn" class="active" onclick="setLang('en')">EN</button>
-    <button id="btnZh" onclick="setLang('zh')">中文</button>
+    <button id="btnEn" onclick="setLang('en')">EN</button>
+    <button id="btnZh" class="active" onclick="setLang('zh')">中文</button>
   </div>
 
   <div class="status-bar">
@@ -34,6 +34,7 @@
     <h3 data-i18n="step2_title">Test the connection</h3>
     <p data-i18n="step2_desc">Click below to send a test message to DeepSeek.</p>
     <button class="btn" id="testBtn" onclick="runTest()" data-i18n="step2_btn">Run Test</button>
+    <a class="btn btn-debug" href="/debug" target="_blank" data-i18n="step2_debug">调试面板</a>
     <div id="testResult" class="test-result"></div>
   </div>
 

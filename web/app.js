@@ -24,6 +24,7 @@ const translations = {
     error: 'Error: ',
     unexpected: 'Unexpected response: ',
     failed: 'Request failed: ',
+    step2_debug: '🔍 Debug Panel',
   },
   zh: {
     subtitle: '\u628a\u7f51\u9875\u7248 AI \u5bf9\u8bdd\u53d8\u6210\u672c\u5730 OpenAI \u517c\u5bb9\u63a5\u53e3',
@@ -47,6 +48,7 @@ const translations = {
     error: '\u9519\u8bef\uff1a',
     unexpected: '\u672a\u77e5\u54cd\u5e94\uff1a',
     failed: '\u8bf7\u6c42\u5931\u8d25\uff1a',
+    step2_debug: '🔍 调试面板',
   },
 }
 
@@ -78,7 +80,10 @@ const LangController = {
 
   /** Auto-detect browser language */
   autoDetect() {
-    if (navigator.language.startsWith('zh')) {
+    // Default to Chinese unless browser is explicitly non-Chinese
+    if (!navigator.language.startsWith('zh')) {
+      this.set('en')
+    } else {
       this.set('zh')
     }
   },

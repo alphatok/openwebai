@@ -36,6 +36,13 @@ export function toHttpError(err: AdapterError): HttpError {
       return { status: 502, body: { error: err.message, recoverable: true } }
     case 'PAGE_CLOSED':
       return { status: 500, body: { error: err.message, recoverable: false } }
+    case 'RELAY_NOT_SET':
+    case 'BROWSER_NOT_CONNECTED':
+      return { status: 503, body: { error: err.message, recoverable: true } }
+    case 'COMMAND_TIMEOUT':
+      return { status: 504, body: { error: err.message, recoverable: true } }
+    case 'COMMAND_FAILED':
+      return { status: 502, body: { error: err.message, recoverable: false } }
     default:
       return { status: 500, body: { error: err.message } }
   }

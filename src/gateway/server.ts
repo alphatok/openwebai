@@ -2,11 +2,13 @@ import Fastify from 'fastify'
 import type { FastifyRequest } from 'fastify'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import * as fs from 'fs'
 import type { ChatRequest } from '../types/task.js'
 import { toHttpError } from '../errors/adapter-error.js'
-import { TaskQueue, createBrowserTask } from '../scheduler/queue.js'
-import { CDPDriver } from '../driver/cdp-driver.js'
+import { AdapterError } from '../errors/adapter-error.js'
 import { DeepSeekAdapter } from '../adapters/deepseek/adapter.js'
+import { WebSocketRelay } from '../bridge/ws-relay.js'
+import { v4 as uuidv4 } from 'uuid'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const WEB_ROOT = path.resolve(__dirname, '../../web')
@@ -21,8 +23,34 @@ function verifyApiKey(request: FastifyRequest): boolean {
   return scheme?.toLowerCase() === 'bearer' && token === API_KEY
 }
 
+/** Execute a chat task via the adapter */
+async function executeTask(adapter: DeepSeekAdapter, prompt: string): Promise<{ content?: string; error?: { code: string; message: string; recoverable: boolean } }> {
+  const taskId = uuidv4()
+  console.log(`[Gateway] Task ${taskId}: "${prompt.slice(0, 50)}..."`)
+
+  try {
+    await adapter.inputText(prompt)
+    await adapter.clickSubmit()
+    await adapter.waitForCompletion()
+    const content = await adapter.extractOutput(prompt)
+
+    console.log(`[Gateway] Task ${taskId} completed, reply length: ${content.length}`)
+    return { content }
+  } catch (err) {
+    const error = err instanceof AdapterError ? err : new AdapterError('NETWORK', String(err), true)
+    console.error(`[Gateway] Task ${taskId} failed:`, error.message)
+    return {
+      error: {
+        code: error.code,
+        message: error.message,
+        recoverable: error.recoverable,
+      },
+    }
+  }
+}
+
 /** Create API Gateway service */
-export async function createGateway(queue: TaskQueue) {
+export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRelay) {
   const app = Fastify({ logger: false })
 
   // CORS
@@ -31,13 +59,13 @@ export async function createGateway(queue: TaskQueue) {
     methods: ['GET', 'POST', 'OPTIONS'],
   })
 
-  // Serve static files from web/ (CSS, JS, etc.)
+  // Serve static files from web/
   await app.register(import('@fastify/static'), {
     root: WEB_ROOT,
     prefix: '/',
   })
 
-  // Setup guide page (root) - serve index.html
+  // Setup guide page
   app.get('/', (_req, reply) => {
     return reply.sendFile('index.html')
   })
@@ -50,6 +78,22 @@ export async function createGateway(queue: TaskQueue) {
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))
 
+  // Debug: return latest SSE log file content
+  app.get('/debug/sse-log', async (_req, reply) => {
+    try {
+      const files = fs.readdirSync(process.cwd())
+        .filter(f => f.startsWith('sse-log-') && f.endsWith('.txt'))
+        .sort()
+        .reverse()
+      if (files.length === 0) return reply.send({ lines: [] })
+      const content = fs.readFileSync(path.join(process.cwd(), files[0]), 'utf-8')
+      const lines = content.split('\n').filter(l => l.trim())
+      return reply.send({ file: files[0], lines })
+    } catch {
+      return reply.send({ lines: [] })
+    }
+  })
+
   // OpenAI-compatible endpoint: /v1/chat/completions
   app.post('/v1/chat/completions', async (request, reply): Promise<void> => {
     const body = request.body as ChatRequest
@@ -58,6 +102,12 @@ export async function createGateway(queue: TaskQueue) {
     // API key verification
     if (!verifyApiKey(request)) {
       reply.code(401).send({ error: { message: 'Invalid API key', type: 'invalid_request_error' } })
+      return
+    }
+
+    // Check extension connection
+    if (!relay.isClientConnected()) {
+      reply.code(503).send({ error: { message: 'Browser extension not connected. Please open DeepSeek in Chrome and ensure the extension is loaded.', type: 'server_error' } })
       return
     }
 
@@ -78,8 +128,8 @@ export async function createGateway(queue: TaskQueue) {
       return
     }
 
-    // Build browser task
-    const task = createBrowserTask(body.model, lastMessage.content)
+    const taskId = uuidv4()
+    const prompt = lastMessage.content
 
     try {
       if (body.stream) {
@@ -90,33 +140,29 @@ export async function createGateway(queue: TaskQueue) {
           Connection: 'keep-alive',
         })
 
-        // Send task ID
-        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${task.taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`)
+        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`)
 
-        // Enqueue and wait for result
-        const result = await queue.enqueue(task)
+        const result = await executeTask(adapter, prompt)
 
-        if (result.status === 'completed' && result.content) {
-          // Send full content at once (MVP simplification: not true streaming)
-          reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${task.taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { content: result.content }, finish_reason: null }] })}\n\n`)
+        if (result.content) {
+          reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { content: result.content }, finish_reason: null }] })}\n\n`)
         }
 
-        // End stream
-        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${task.taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`)
+        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: {}, finish_reason: result.error ? 'stop' : 'stop' }] })}\n\n`)
         reply.raw.write('data: [DONE]\n\n')
         reply.raw.end()
       } else {
         // Non-stream response
-        const result = await queue.enqueue(task)
+        const result = await executeTask(adapter, prompt)
 
-        if (result.status === 'completed') {
+        if (result.content !== undefined) {
           reply.send({
-            id: `chatcmpl-${task.taskId}`,
+            id: `chatcmpl-${taskId}`,
             object: 'chat.completion',
             model: body.model,
             choices: [
               {
-                message: { role: 'assistant', content: result.content ?? '' },
+                message: { role: 'assistant', content: result.content },
                 finish_reason: 'stop',
               },
             ],
@@ -126,7 +172,7 @@ export async function createGateway(queue: TaskQueue) {
 
         // Error response
         if (result.error) {
-          const httpErr = toHttpError(new (await import('../errors/adapter-error.js')).AdapterError(
+          const httpErr = toHttpError(new AdapterError(
             result.error.code as never,
             result.error.message,
             result.error.recoverable,
@@ -161,17 +207,18 @@ export async function createGateway(queue: TaskQueue) {
   return app
 }
 
-/** Create complete Gateway + Driver + Queue instance */
+/** Create complete app */
 export async function createApp() {
-  // 1. Create driver
-  const driver = new CDPDriver()
-  driver.registerAdapter(new DeepSeekAdapter())
+  // 1. Create WebSocket relay
+  const relay = new WebSocketRelay(18765)
+  await relay.start()
 
-  // 2. Create scheduler
-  const queue = new TaskQueue(driver)
+  // 2. Create adapter
+  const adapter = new DeepSeekAdapter()
+  adapter.setRelay(relay)
 
   // 3. Create gateway
-  const app = await createGateway(queue)
+  const app = await createGateway(adapter, relay)
 
-  return { app, driver, queue }
+  return { app, relay }
 }

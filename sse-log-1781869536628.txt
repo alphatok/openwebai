@@ -1,0 +1,95 @@
+[SESSION] Chat stream started: /api/v0/chat/completion
+[CHUNK] event: update_session
+data: {"updated_at":1781869537.243423}
+
+data: {"v":{"response":{"message_id":10,"parent_id":9,"model":"","role":"ASSISTANT","thinking_enabled":false,"ban_edit":false,"ban_regenerate":false,"status":"WIP","incomplete_message":null,"accumulated_token_usage":437,"feedback":null,"inserted_at":1781869537.233542,"search_enabled":true,"fragments":[{"id":2,"type":"RESPONSE","content":"Hi","references":[],"stage_id":1}],"conversation_mode":"DEFAULT","has_pending_fragment":false,"auto_continue":false,"search_triggered":false}}}
+
+
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[RESULT] accumulated=0 full=2 result=2 preview="Hi"
+[CHUNK] data: {"p":"response/fragments/-1/content","o":"APPEND","v":"."}
+
+
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[RESULT] accumulated=1 full=2 result=2 preview="Hi"
+[CHUNK] data: {"p":"response","o":"BATCH","v":[{"p":"accumulated_token_usage","v":465},{"p":"quasi_status","v":"FINISHED"}]}
+
+data: {"p":"response/status","o":"SET","v":"FINISHED"}
+
+event: update_session
+data: {"updated_at":1781869537.445199}
+
+event: close
+data: {"click_behavior":"none","auto_resume":false}
+
+
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
+[CHUNK] {"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":{"challenge":{"algorithm":"DeepSeekHashV1","challenge":"a00d9faf344bfe0890760a7e2bb8fec03ff975b47ee7d4f55f0c6b90500a7871","salt":"47ef88533dd343c77ec7","signature":"763566ccc73aeb15b360373442fdfd805077b7e15ab7fb5f27f76b00cfaad635","difficulty":144000,"expire_at":1781869869441,"expire_after":300000,"target_path":"/api/v0/chat/completion"}}}}
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
+[CHUNK] {"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":{"challenge":{"algorithm":"DeepSeekHashV1","challenge":"2ac655aa28cfaea3b81eb5744d9dc5857b0d2c3d2972477c40bc57a444dc63fd","salt":"304bd031b749bcfb6479","signature":"2ce2fe96ab101291c3a02f7ade34439ee64e708455c8229e5d1b1e69919b1d1d","difficulty":144000,"expire_at":1781869872746,"expire_after":300000,"target_path":"/api/v0/chat/completion"}}}}
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
+[CHUNK] {"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":{"challenge":{"algorithm":"DeepSeekHashV1","challenge":"438208fb35b922fe5ca7014fce68362a752dd30fbf5cf16a485db1168f721e9c","salt":"8c03558383de74a7d9af","signature":"a06985846c67770c1c5c6926675ec1b8b1d57e23ffe975703f70fa9314f38ec4","difficulty":144000,"expire_at":1781869872830,"expire_after":300000,"target_path":"/api/v0/file/upload_file"}}}}
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.243423}
+[PARSE-F4] fragment type=RESPONSE len=2
+[PARSE-F1] v="." accumulated=1
+[PARSE-F3] BATCH ops=2
+[PARSE-F1] v="FINISHED" accumulated=9
+[PARSE-UNKNOWN] keys=updated_at json={"updated_at":1781869537.445199}
+[PARSE-UNKNOWN] keys=click_behavior,auto_resume json={"click_behavior":"none","auto_resume":false}
+[RESULT] accumulated=9 full=2 result=9 preview=".FINISHED"
