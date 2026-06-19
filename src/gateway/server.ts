@@ -22,6 +22,16 @@ const SETUP_PAGE_HTML = `<!DOCTYPE html>
   }
   h1 { color: #fff; font-size: 28px; margin-bottom: 4px; }
   .subtitle { color: #888; margin-bottom: 32px; }
+  .lang-toggle {
+    float: right; margin-top: -36px; margin-bottom: 12px;
+  }
+  .lang-toggle button {
+    background: #1a1a2e; color: #888; border: 1px solid #333;
+    padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;
+    transition: all 0.2s;
+  }
+  .lang-toggle button:hover { color: #fff; border-color: #6366f1; }
+  .lang-toggle button.active { color: #fff; background: #6366f1; border-color: #6366f1; }
   .status-bar {
     background: #1a1a2e; border-radius: 8px; padding: 16px 20px;
     margin-bottom: 32px; display: flex; align-items: center; gap: 12px;
@@ -65,7 +75,7 @@ const SETUP_PAGE_HTML = `<!DOCTYPE html>
     display: none; font-size: 13px;
   }
   .test-result.ok { display: block; background: #0d2a1a; color: #4ade80; border: 1px solid #1a4a2e; }
-  .test-result.err { display: block; background: #2a0d0d; color: #f87171; border: 1spx solid #4a1a1a; }
+  .test-result.err { display: block; background: #2a0d0d; color: #f87171; border: 1px solid #4a1a1a; }
   .api-section { margin-top: 32px; }
   .api-section h2 { color: #fff; font-size: 18px; margin-bottom: 16px; }
   .api-card {
@@ -79,39 +89,44 @@ const SETUP_PAGE_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <h1>OpenWebAI</h1>
-<p class="subtitle">Turn web AI chat into local OpenAI-compatible API</p>
+<p class="subtitle" data-i18n="subtitle">Turn web AI chat into local OpenAI-compatible API</p>
+
+<div class="lang-toggle">
+  <button id="btnEn" class="active" onclick="setLang('en')">EN</button>
+  <button id="btnZh" onclick="setLang('zh')">中文</button>
+</div>
 
 <div class="status-bar">
   <div class="status-dot"></div>
-  <span>Server running at <code>http://localhost:3000</code></span>
+  <span data-i18n="status">Server running at <code>http://localhost:3000</code></span>
 </div>
 
 <!-- Step 1 -->
 <div class="step">
   <span class="step-num">1</span>
-  <h3>Log in to DeepSeek</h3>
-  <p>A Chrome window should have opened with <code>chat.deepseek.com</code>.<br>
-     Log in with your account. The adapter will detect your login status.</p>
+  <h3 data-i18n="step1_title">Log in to DeepSeek</h3>
+  <p data-i18n="step1_desc">A Chrome window should have opened with <code>chat.deepseek.com</code>.<br>
+     Log in with your account. Login state is saved across sessions.</p>
 </div>
 
 <!-- Step 2 -->
 <div class="step">
   <span class="step-num">2</span>
-  <h3>Test the connection</h3>
-  <p>Click below to send a test message. If selectors are outdated, see Step 3.</p>
-  <button class="btn" id="testBtn" onclick="runTest()">Run Test</button>
+  <h3 data-i18n="step2_title">Test the connection</h3>
+  <p data-i18n="step2_desc">Click below to send a test message to DeepSeek.</p>
+  <button class="btn" id="testBtn" onclick="runTest()" data-i18n="step2_btn">Run Test</button>
   <div id="testResult" class="test-result"></div>
 </div>
 
 <!-- Step 3 -->
 <div class="step">
   <span class="step-num">3</span>
-  <h3>Connect your AI client (optional)</h3>
-  <p>Use any OpenAI-compatible client by setting:</p>
+  <h3 data-i18n="step3_title">Connect your AI client (optional)</h3>
+  <p data-i18n="step3_desc">Use any OpenAI-compatible client by setting:</p>
   <pre><code>Base URL: http://localhost:3000/v1
 Model:     deepseek
 API Key:    (leave empty)</code></pre>
-  <p style="padding-left:40px;margin-top:8px;">
+  <p style="padding-left:40px;margin-top:8px;" data-i18n="step3_clients">
     Works with: ChatGPT-Next-Web, LobeChat, Continue, Cursor, etc.
   </p>
 </div>
@@ -119,7 +134,7 @@ API Key:    (leave empty)</code></pre>
 <!-- Step 4 -->
 <div class="step">
   <span class="step-num">4</span>
-  <h3>Use via curl / API</h3>
+  <h3 data-i18n="step4_title">Use via curl / API</h3>
   <pre><code># Health check
 curl http://localhost:3000/health
 
@@ -131,18 +146,18 @@ curl -X POST http://localhost:3000/v1/chat/completions \\
 
 <!-- API Reference -->
 <div class="api-section">
-  <h2>API Endpoints</h2>
+  <h2 data-i18n="api_title">API Endpoints</h2>
   <div class="api-card">
     <h4>GET /health</h4>
-    <p>Health check - returns {"status":"ok"}</p>
+    <p data-i18n="api_health">Health check - returns {"status":"ok"}</p>
   </div>
   <div class="api-card">
     <h4>GET /v1/models</h4>
-    <p>List available models (OpenAI-compatible)</p>
+    <p data-i18n="api_models">List available models (OpenAI-compatible)</p>
   </div>
   <div class="api-card">
     <h4>POST /v1/chat/completions</h4>
-    <p>Chat completion (OpenAI-compatible). Supports stream:true for SSE.</p>
+    <p data-i18n="api_chat">Chat completion (OpenAI-compatible). Supports stream:true for SSE.</p>
   </div>
 </div>
 
@@ -151,13 +166,81 @@ curl -X POST http://localhost:3000/v1/chat/completions \\
 </div>
 
 <script>
+const i18n = {
+  en: {
+    subtitle: 'Turn web AI chat into local OpenAI-compatible API',
+    status: 'Server running at <code>http://localhost:3000</code>',
+    step1_title: 'Log in to DeepSeek',
+    step1_desc: 'A Chrome window should have opened with <code>chat.deepseek.com</code>.<br>Log in with your account. Login state is saved across sessions.',
+    step2_title: 'Test the connection',
+    step2_desc: 'Click below to send a test message to DeepSeek.',
+    step2_btn: 'Run Test',
+    step3_title: 'Connect your AI client (optional)',
+    step3_desc: 'Use any OpenAI-compatible client by setting:',
+    step3_clients: 'Works with: ChatGPT-Next-Web, LobeChat, Continue, Cursor, etc.',
+    step4_title: 'Use via curl / API',
+    api_title: 'API Endpoints',
+    api_health: 'Health check - returns {"status":"ok"}',
+    api_models: 'List available models (OpenAI-compatible)',
+    api_chat: 'Chat completion (OpenAI-compatible). Supports stream:true for SSE.',
+    testing: 'Testing...',
+    sending: 'Sending test request...',
+    success: 'Success! Reply: ',
+    error: 'Error: ',
+    unexpected: 'Unexpected response: ',
+    failed: 'Request failed: ',
+  },
+  zh: {
+    subtitle: '\u628a\u7f51\u9875\u7248 AI \u5bf9\u8bdd\u53d8\u6210\u672c\u5730 OpenAI \u517c\u5bb9\u63a5\u53e3',
+    status: '\u670d\u52a1\u5df2\u542f\u52a8\uff1a<code>http://localhost:3000</code>',
+    step1_title: '\u767b\u5f55 DeepSeek',
+    step1_desc: 'Chrome \u6d4f\u89c8\u5668\u5e94\u5df2\u6253\u5f00 <code>chat.deepseek.com</code>\u3002<br>\u8bf7\u5728\u6d4f\u89c8\u5668\u4e2d\u767b\u5f55\u4f60\u7684\u8d26\u53f7\uff0c\u767b\u5f55\u72b6\u6001\u4f1a\u81ea\u52a8\u4fdd\u5b58\u3002',
+    step2_title: '\u6d4b\u8bd5\u8fde\u63a5',
+    step2_desc: '\u70b9\u51fb\u4e0b\u65b9\u6309\u94ae\uff0c\u53d1\u9001\u4e00\u6761\u6d4b\u8bd5\u6d88\u606f\u7ed9 DeepSeek\u3002',
+    step2_btn: '\u8fd0\u884c\u6d4b\u8bd5',
+    step3_title: '\u63a5\u5165 AI \u5ba2\u6237\u7aef\uff08\u53ef\u9009\uff09',
+    step3_desc: '\u5728\u4efb\u4f55 OpenAI \u517c\u5bb9\u5ba2\u6237\u7aef\u4e2d\u8bbe\u7f6e\uff1a',
+    step3_clients: '\u517c\u5bb9\uff1aChatGPT-Next-Web\u3001LobeChat\u3001Continue\u3001Cursor \u7b49',
+    step4_title: '\u4f7f\u7528 curl / API',
+    api_title: 'API \u63a5\u53e3',
+    api_health: '\u5065\u5eb7\u68c0\u67e5 - \u8fd4\u56de {"status":"ok"}',
+    api_models: '\u5217\u51fa\u53ef\u7528\u6a21\u578b\uff08OpenAI \u517c\u5bb9\uff09',
+    api_chat: '\u5bf9\u8bdd\u8865\u5168\uff08OpenAI \u517c\u5bb9\uff09\u3002\u652f\u6301 stream:true \u6d41\u5f0f\u54cd\u5e94\u3002',
+    testing: '\u6d4b\u8bd5\u4e2d...',
+    sending: '\u6b63\u5728\u53d1\u9001\u6d4b\u8bd5\u8bf7\u6c42...',
+    success: '\u6210\u529f\uff01\u56de\u590d\uff1a',
+    error: '\u9519\u8bef\uff1a',
+    unexpected: '\u672a\u77e5\u54cd\u5e94\uff1a',
+    failed: '\u8bf7\u6c42\u5931\u8d25\uff1a',
+  }
+};
+
+let currentLang = 'en';
+
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('btnEn').className = lang === 'en' ? 'active' : '';
+  document.getElementById('btnZh').className = lang === 'zh' ? 'active' : '';
+  document.documentElement.lang = lang;
+
+  const t = i18n[lang];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (t[key] !== undefined) el.innerHTML = t[key];
+  });
+}
+
+// Auto-detect language
+if (navigator.language.startsWith('zh')) setLang('zh');
+
 async function runTest() {
   const btn = document.getElementById('testBtn');
   const result = document.getElementById('testResult');
+  const t = i18n[currentLang];
   btn.disabled = true;
-  btn.textContent = 'Testing...';
+  btn.textContent = t.testing;
   result.className = 'test-result';
-  result.textContent = 'Sending test request...';
+  result.textContent = t.sending;
 
   try {
     const resp = await fetch('/v1/chat/completions', {
@@ -172,22 +255,21 @@ async function runTest() {
 
     if (data.choices && data.choices[0]) {
       result.className = 'test-result ok';
-      result.textContent = 'Success! Reply: "' + data.choices[0].message.content + '"';
+      result.textContent = t.success + '"' + data.choices[0].message.content + '"';
     } else if (data.error) {
       result.className = 'test-result err';
-      result.textContent = 'Error: ' + data.error +
-        (data.recoverable ? ' (recoverable)' : '');
+      result.textContent = t.error + (data.error.message || data.error);
     } else {
       result.className = 'test-result err';
-      result.textContent = 'Unexpected response: ' + JSON.stringify(data).slice(0, 200);
+      result.textContent = t.unexpected + JSON.stringify(data).slice(0, 200);
     }
   } catch(e) {
     result.className = 'test-result err';
-    result.textContent = 'Request failed: ' + e.message;
+    result.textContent = t.failed + e.message;
   }
 
   btn.disabled = false;
-  btn.textContent = 'Run Test';
+  btn.textContent = t.step2_btn;
 }
 </script>
 </body>
