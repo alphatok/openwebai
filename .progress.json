@@ -1,1 +1,1 @@
-{"lastTask": "1.3", "completed": ["0.1", "0.2", "0.3", "1.1", "1.2", "1.3"], "currentPhase": "Phase 2", "notes": {"0.1": "项目名改为 openwebai，remote 改为 https://github.com/alphatok/openwebai.git"}}
+{"lastTask": "2.3", "completed": ["0.1", "0.2", "0.3", "1.1", "1.2", "1.3", "2.1", "2.2", "2.3"], "currentPhase": "Phase 3", "notes": {"2.4": "集成自测留到 Phase 6 统一执行（需 Playwright 浏览器）"}}
