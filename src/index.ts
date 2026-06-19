@@ -3,25 +3,25 @@ import { createApp } from './gateway/server.js'
 const PORT = Number(process.env.PORT) || 3000
 
 async function main() {
-  console.log('[openwebai] 正在启动...')
+  console.log('[openwebai] Starting...')
 
-  // 组装所有模块
+  // Assemble all modules
   const { app, driver } = await createApp()
 
-  // 启动浏览器驱动
+  // Launch browser driver
   await driver.launch()
 
-  // 启动 API 服务
+  // Start API server
   await app.listen({ host: '0.0.0.0', port: PORT })
 
-  console.log(`[openwebai] 服务已启动: http://localhost:${PORT}`)
-  console.log('[openwebai] OpenAI 兼容接口: POST /v1/chat/completions')
-  console.log('[openwebai] 模型列表: GET /v1/models')
-  console.log('[openwebai] 健康检查: GET /health')
+  console.log(`[openwebai] Server running: http://localhost:${PORT}`)
+  console.log('[openwebai] OpenAI-compatible API: POST /v1/chat/completions')
+  console.log('[openwebai] Models list: GET /v1/models')
+  console.log('[openwebai] Health check: GET /health')
 
-  // 优雅关闭
+  // Graceful shutdown
   const shutdown = async (signal: string) => {
-    console.log(`\n[openwebai] 收到 ${signal}，正在关闭...`)
+    console.log(`\n[openwebai] Received ${signal}, shutting down...`)
     await app.close()
     await driver.close()
     process.exit(0)
@@ -32,6 +32,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('[openwebai] 启动失败:', err)
+  console.error('[openwebai] Startup failed:', err)
   process.exit(1)
 })

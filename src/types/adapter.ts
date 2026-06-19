@@ -1,6 +1,6 @@
 import type { Page } from 'playwright'
 
-/** 站点 DOM 选择器配置 */
+/** Site DOM selector configuration */
 export interface SiteConfig {
   url: string
   selectors: {
@@ -17,7 +17,7 @@ export interface SiteConfig {
   }
 }
 
-/** 站点适配器核心接口 - 所有站点必须实现 */
+/** Core site adapter interface - all sites must implement this */
 export interface ISiteAdapter {
   readonly siteId: string
   readonly config: SiteConfig
@@ -32,7 +32,7 @@ export interface ISiteAdapter {
   hasCaptcha(): boolean
 }
 
-/** 浏览器驱动接口 */
+/** Browser driver interface */
 export interface IBrowserDriver {
   launch(): Promise<void>
   execute(task: BrowserTask): Promise<TaskResult>
@@ -40,6 +40,6 @@ export interface IBrowserDriver {
   close(): Promise<void>
 }
 
-// 重新导出 task 类型以避免循环依赖
+// Re-export task types to avoid circular dependency
 import type { BrowserTask, TaskResult } from './task.js'
 export type { BrowserTask, TaskResult }

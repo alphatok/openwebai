@@ -1,6 +1,6 @@
 import type { AdapterErrorCode } from '../types/task.js'
 
-/** 适配器错误类 - 分类错误码 + 可恢复标记 */
+/** Adapter error class with error codes and recoverable flag */
 export class AdapterError extends Error {
   constructor(
     public readonly code: AdapterErrorCode,
@@ -12,7 +12,7 @@ export class AdapterError extends Error {
   }
 }
 
-/** HTTP 错误响应格式 */
+/** HTTP error response format */
 export interface HttpError {
   status: number
   body: {
@@ -21,7 +21,7 @@ export interface HttpError {
   }
 }
 
-/** 将 AdapterError 映射为 HTTP 状态码和响应体 */
+/** Map AdapterError to HTTP status code and response body */
 export function toHttpError(err: AdapterError): HttpError {
   switch (err.code) {
     case 'CAPTCHA':

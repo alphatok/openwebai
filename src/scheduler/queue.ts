@@ -2,14 +2,14 @@ import type { CDPDriver } from '../driver/cdp-driver.js'
 import type { BrowserTask, TaskResult } from '../types/task.js'
 import { v4 as uuidv4 } from 'uuid'
 
-/** 队列中的任务项（带回调） */
+/** Queued task item with callbacks */
 interface QueuedTask {
   task: BrowserTask
   resolve: (result: TaskResult) => void
   reject: (err: Error) => void
 }
 
-/** FIFO 任务调度器 - 串行执行浏览器任务 */
+/** FIFO Task Scheduler - serial execution of browser tasks */
 export class TaskQueue {
   private queue: QueuedTask[] = []
   private processing = false
@@ -19,16 +19,16 @@ export class TaskQueue {
     this.driver = driver
   }
 
-  /** 入队任务，返回 Promise 可等待结果 */
+  /** Enqueue task, returns Promise that resolves with result */
   enqueue(task: BrowserTask): Promise<TaskResult> {
     return new Promise<TaskResult>((resolve, reject) => {
       this.queue.push({ task, resolve, reject })
-      console.log(`[TaskQueue] 任务入队: ${task.taskId} (队列长度: ${this.queue.length})`)
+      console.log(`[TaskQueue] Task enqueued: ${task.taskId} (queue length: ${this.queue.length})`)
       this.processNext()
     })
   }
 
-  /** 消费队列中的下一个任务 */
+  /** Process next task in queue */
   private async processNext(): Promise<void> {
     if (this.processing || this.queue.length === 0) return
 
@@ -36,7 +36,7 @@ export class TaskQueue {
     const item = this.queue.shift()!
 
     try {
-      console.log(`[TaskQueue] 开始处理: ${item.task.taskId}`)
+      console.log(`[TaskQueue] Processing: ${item.task.taskId}`)
       const result = await this.driver.execute(item.task)
       item.resolve(result)
     } catch (err) {
@@ -44,12 +44,12 @@ export class TaskQueue {
       item.reject(error)
     } finally {
       this.processing = false
-      // 继续处理下一个
+      // Process next task
       this.processNext()
     }
   }
 
-  /** 获取当前队列状态 */
+  /** Get current queue status */
   getStatus(): { queueLength: number; processing: boolean } {
     return {
       queueLength: this.queue.length,
@@ -57,17 +57,17 @@ export class TaskQueue {
     }
   }
 
-  /** 清空队列（用于取消） */
+  /** Clear queue (for cancellation) */
   clear(): void {
     for (const item of this.queue) {
-      item.reject(new Error('任务已取消'))
+      item.reject(new Error('Task cancelled'))
     }
     this.queue = []
-    console.log('[TaskQueue] 队列已清空')
+    console.log('[TaskQueue] Queue cleared')
   }
 }
 
-/** 创建带 taskId 的浏览器任务 */
+/** Create a browser task with generated taskId */
 export function createBrowserTask(siteId: string, prompt: string): BrowserTask {
   return {
     taskId: uuidv4(),

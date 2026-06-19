@@ -1,4 +1,4 @@
-/** SSE 流式响应块 */
+/** SSE stream response chunk */
 export interface StreamChunk {
   id: string
   choices: Array<{
@@ -7,7 +7,7 @@ export interface StreamChunk {
   }>
 }
 
-/** OpenAI 兼容的 chat completion 响应 */
+/** OpenAI-compatible chat completion response */
 export interface ChatResponse {
   id: string
   object: 'chat.completion'

@@ -3,12 +3,12 @@ import type { ISiteAdapter } from '../types/adapter.js'
 import type { BrowserTask, TaskResult } from '../types/task.js'
 import { AdapterError } from '../errors/adapter-error.js'
 
-/** 带生命周期管理的 Page 包装器 */
+/** Managed Page wrapper with lifecycle tracking */
 export class ManagedPage {
   private _alive = true
 
   constructor(public readonly page: Page) {
-    // 监听 page 关闭事件
+    // Listen for page close event
     page.on('close', () => {
       this._alive = false
     })
@@ -18,10 +18,10 @@ export class ManagedPage {
     return this._alive
   }
 
-  /** 确保页面存活，否则抛出明确错误 */
+  /** Ensure page is alive, throw error otherwise */
   ensureAlive(): void {
     if (!this._alive) {
-      throw new AdapterError('PAGE_CLOSED', '浏览器页面已关闭', false)
+      throw new AdapterError('PAGE_CLOSED', 'Browser page closed', false)
     }
   }
 
@@ -31,24 +31,24 @@ export class ManagedPage {
   }
 }
 
-/** CDP 浏览器驱动 - 通过 Playwright 操控 Chrome */
+/** CDP Browser Driver - controls Chrome via Playwright */
 export class CDPDriver {
   private browser: Browser | null = null
   private context: BrowserContext | null = null
   private managedPage: ManagedPage | null = null
   private adapters = new Map<string, ISiteAdapter>()
 
-  /** 注册站点适配器 */
+  /** Register a site adapter */
   registerAdapter(adapter: ISiteAdapter): void {
     this.adapters.set(adapter.siteId, adapter)
   }
 
-  /** 获取已注册的适配器 */
+  /** Get registered adapter by siteId */
   getAdapter(siteId: string): ISiteAdapter | undefined {
     return this.adapters.get(siteId)
   }
 
-  /** 启动浏览器（使用用户本地 Chrome） */
+  /** Launch browser using local Chrome */
   async launch(): Promise<void> {
     const { chromium } = await import('playwright')
     this.browser = await chromium.launch({
@@ -60,13 +60,13 @@ export class CDPDriver {
     const page = await this.context.newPage()
     this.managedPage = new ManagedPage(page)
 
-    console.log('[CDPDriver] 浏览器已启动')
+    console.log('[CDPDriver] Browser launched')
   }
 
-  /** 执行任务：在指定站点上完成一次对话 */
+  /** Execute task: complete a conversation on specified site */
   async execute(task: BrowserTask): Promise<TaskResult> {
     if (!this.managedPage) {
-      throw new AdapterError('PAGE_CLOSED', '浏览器未启动，请先调用 launch()', false)
+      throw new AdapterError('PAGE_CLOSED', 'Browser not started. Call launch() first.', false)
     }
 
     this.managedPage.ensureAlive()
@@ -78,44 +78,44 @@ export class CDPDriver {
         status: 'failed',
         error: {
           code: 'SELECTOR_EXPIRED',
-          message: `未找到站点适配器: ${task.siteId}`,
+          message: `No adapter found for site: ${task.siteId}`,
           recoverable: false,
         },
       }
     }
 
     try {
-      // 初始化适配器（如果尚未初始化）
+      // Initialize adapter if not yet done
       const page = this.managedPage.page
 
-      // 如果当前页面不在目标站点，导航过去
+      // Navigate to target site if not already there
       const currentUrl = page.url()
       if (!currentUrl.includes(adapter.config.url.replace('https://', '').replace('http://', ''))) {
         await adapter.init(page)
       }
 
-      // 检查是否就绪（已登录）
+      // Check readiness (logged in)
       if (!adapter.isReady()) {
         return {
           taskId: task.taskId,
           status: 'failed',
           error: {
             code: 'AUTH_FAILED',
-            message: `${adapter.siteId} 未登录，请在浏览器中完成登录`,
+            message: `${adapter.siteId} not logged in. Please log in browser.`,
             recoverable: true,
           },
         }
       }
 
-      // 执行对话流程
-      console.log(`[CDPDriver] 开始执行任务 ${task.taskId}: "${task.prompt.slice(0, 50)}..."`)
+      // Execute conversation flow
+      console.log(`[CDPDriver] Executing task ${task.taskId}: "${task.prompt.slice(0, 50)}..."`)
 
-      await adapter.inputText(task.prompt)       // 输入文本
-      await adapter.clickSubmit()                 // 点击发送
-      await adapter.waitForCompletion()           // 等待生成完成
-      const content = await adapter.extractOutput() // 提取回复
+      await adapter.inputText(task.prompt)       // Input text
+      await adapter.clickSubmit()                 // Click send
+      await adapter.waitForCompletion()           // Wait for completion
+      const content = await adapter.extractOutput() // Extract reply
 
-      console.log(`[CDPDriver] 任务 ${task.taskId} 完成，回复长度: ${content.length}`)
+      console.log(`[CDPDriver] Task ${task.taskId} completed, reply length: ${content.length}`)
 
       return {
         taskId: task.taskId,
@@ -136,9 +136,9 @@ export class CDPDriver {
     }
   }
 
-  /** 关闭浏览器 */
+  /** Close browser */
   async close(): Promise<void> {
-    console.log('[CDPDriver] 正在关闭浏览器...')
+    console.log('[CDPDriver] Closing browser...')
     if (this.managedPage) {
       await this.managedPage.close().catch(() => {})
       this.managedPage = null
@@ -151,6 +151,6 @@ export class CDPDriver {
       await this.browser.close().catch(() => {})
       this.browser = null
     }
-    console.log('[CDPDriver] 浏览器已关闭')
+    console.log('[CDPDriver] Browser closed')
   }
 }

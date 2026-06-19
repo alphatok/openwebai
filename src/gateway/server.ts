@@ -5,7 +5,7 @@ import { TaskQueue, createBrowserTask } from '../scheduler/queue.js'
 import { CDPDriver } from '../driver/cdp-driver.js'
 import { DeepSeekAdapter } from '../adapters/deepseek/adapter.js'
 
-/** 创建 API Gateway 服务 */
+/** Create API Gateway service */
 export async function createGateway(queue: TaskQueue) {
   const app = Fastify({ logger: false })
 
@@ -15,14 +15,14 @@ export async function createGateway(queue: TaskQueue) {
     methods: ['GET', 'POST', 'OPTIONS'],
   })
 
-  // 健康检查
+  // Health check
   app.get('/health', async () => ({ status: 'ok' }))
 
-  // OpenAI 兼容接口: /v1/chat/completions
+  // OpenAI-compatible endpoint: /v1/chat/completions
   app.post('/v1/chat/completions', async (request, reply): Promise<void> => {
     const body = request.body as ChatRequest
 
-    // 参数校验
+    // Parameter validation
     if (!body.model) {
       reply.code(400).send({ error: { message: 'model is required', type: 'invalid_request_error' } })
       return
@@ -32,42 +32,42 @@ export async function createGateway(queue: TaskQueue) {
       return
     }
 
-    // 提取最后一条用户消息作为 prompt
+    // Extract last user message as prompt
     const lastMessage = body.messages[body.messages.length - 1]
     if (!lastMessage || lastMessage.role !== 'user') {
       reply.code(400).send({ error: { message: 'last message must be from user', type: 'invalid_request_error' } })
       return
     }
 
-    // 构造浏览器任务
+    // Build browser task
     const task = createBrowserTask(body.model, lastMessage.content)
 
     try {
       if (body.stream) {
-        // 流式响应 - SSE
+        // Stream response - SSE
         reply.raw.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           Connection: 'keep-alive',
         })
 
-        // 发送 task ID
+        // Send task ID
         reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${task.taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`)
 
-        // 入队并等待结果
+        // Enqueue and wait for result
         const result = await queue.enqueue(task)
 
         if (result.status === 'completed' && result.content) {
-          // 一次性发送完整内容（MVP 简化：非真正流式）
+          // Send full content at once (MVP simplification: not true streaming)
           reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${task.taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { content: result.content }, finish_reason: null }] })}\n\n`)
         }
 
-        // 结束
+        // End stream
         reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${task.taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`)
         reply.raw.write('data: [DONE]\n\n')
         reply.raw.end()
       } else {
-        // 非流式响应
+        // Non-stream response
         const result = await queue.enqueue(task)
 
         if (result.status === 'completed') {
@@ -85,7 +85,7 @@ export async function createGateway(queue: TaskQueue) {
           return
         }
 
-        // 错误响应
+        // Error response
         if (result.error) {
           const httpErr = toHttpError(new (await import('../errors/adapter-error.js')).AdapterError(
             result.error.code as never,
@@ -96,7 +96,7 @@ export async function createGateway(queue: TaskQueue) {
           return
         }
 
-        reply.code(500).send({ error: { message: '任务执行失败', type: 'server_error' } })
+        reply.code(500).send({ error: { message: 'Task execution failed', type: 'server_error' } })
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -104,7 +104,7 @@ export async function createGateway(queue: TaskQueue) {
     }
   })
 
-  // 列出可用模型
+  // List available models
   app.get('/v1/models', async () => ({
     object: 'list',
     data: [
@@ -115,16 +115,16 @@ export async function createGateway(queue: TaskQueue) {
   return app
 }
 
-/** 创建完整的 Gateway + Driver + Queue 实例 */
+/** Create complete Gateway + Driver + Queue instance */
 export async function createApp() {
-  // 1. 创建驱动
+  // 1. Create driver
   const driver = new CDPDriver()
   driver.registerAdapter(new DeepSeekAdapter())
 
-  // 2. 创建调度器
+  // 2. Create scheduler
   const queue = new TaskQueue(driver)
 
-  // 3. 创建网关
+  // 3. Create gateway
   const app = await createGateway(queue)
 
   return { app, driver, queue }
