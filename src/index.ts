@@ -1,4 +1,5 @@
 import { createApp } from './gateway/server.js'
+import { exec } from 'child_process'
 
 const PORT = Number(process.env.PORT) || 3000
 
@@ -8,7 +9,7 @@ async function main() {
   // Assemble all modules
   const { app, driver } = await createApp()
 
-  // Launch browser driver
+  // Launch browser driver (auto-navigates to target site)
   await driver.launch()
 
   // Start API server
@@ -17,7 +18,25 @@ async function main() {
   console.log(`[openwebai] Server running: http://localhost:${PORT}`)
   console.log('[openwebai] OpenAI-compatible API: POST /v1/chat/completions')
   console.log('[openwebai] Models list: GET /v1/models')
-  console.log('[openwebai] Health check: GET /health')
+  console.log('[openwebai] Setup guide: http://localhost:${PORT}/')
+  console.log('')
+  console.log('[openwebai] >>> Opening setup guide in browser... <<<')
+
+  // Auto-open setup guide page
+  try {
+    const url = `http://localhost:${PORT}`
+    const platform = process.platform
+    if (platform === 'win32') {
+      exec(`start ${url}`)
+    } else if (platform === 'darwin') {
+      exec(`open ${url}`)
+    } else {
+      exec(`xdg-open ${url}`)
+    }
+  } catch {
+    console.warn('[openwebai] Could not auto-open browser, please open manually:')
+    console.warn(`         http://localhost:${PORT}`)
+  }
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {

@@ -60,6 +60,14 @@ export class CDPDriver {
     const page = await this.context.newPage()
     this.managedPage = new ManagedPage(page)
 
+    // Navigate to first registered adapter's site if available
+    const firstAdapter = this.adapters.values().next().value
+    if (firstAdapter) {
+      console.log(`[CDPDriver] Navigating to ${firstAdapter.config.url} ...`)
+      console.log('[CDPDriver] >>> Please LOG IN to the site in the browser window <<<')
+      await page.goto(firstAdapter.config.url, { waitUntil: 'domcontentloaded' })
+    }
+
     console.log('[CDPDriver] Browser launched')
   }
 
