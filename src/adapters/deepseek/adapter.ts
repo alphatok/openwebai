@@ -92,44 +92,54 @@ export class DeepSeekAdapter extends BaseAdapter {
   }
 
   /** Extract latest response text */
-  async extractOutput(): Promise<string> {
+  async extractOutput(prompt?: string): Promise<string> {
     if (!this.page) throw new AdapterError('PAGE_CLOSED', 'Page not initialized', false)
 
-    // Try each output selector
-    const selectors = this.config.selectors.outputContainer.split(',').map(s => s.trim())
+    // Strategy: don't rely on fragile CSS selectors.
+    // Get all visible text from the page, subtract the prompt,
+    // and return the largest text block that's new.
 
-    for (const sel of selectors) {
-      const containers = await this.page.$$(sel)
-      if (containers.length > 0) {
-        // Use the last matching container (most recent response)
-        const last = containers[containers.length - 1]!
-        const text = await last.textContent().catch(() => '')
-        if (text && text.trim().length > 0) {
-          return text.trim()
+    const fullText = await this.page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const doc = (globalThis as any).document
+      // Get text from all non-hidden block elements
+      const nodes = doc.body.querySelectorAll('div, section, article, p, span, pre, code')
+      const texts: { text: string; depth: number }[] = []
+
+      for (const el of nodes) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const style = (globalThis as any).getComputedStyle(el)
+        if (style.display === 'none' || style.visibility === 'hidden') continue
+        if (el.offsetParent === null && el !== doc.body) continue
+
+        const text = (el.textContent ?? '').trim()
+        // Filter out very short text (UI labels) and very long text (entire page)
+        if (text.length > 10 && text.length < 20000) {
+          // Calculate nesting depth as heuristic for specificity
+          let depth = 0
+          let parent = el.parentElement
+          while (parent && parent !== doc.body) { depth++; parent = parent.parentElement }
+          texts.push({ text, depth })
         }
+      }
+
+      // Sort by depth descending (deepest = most specific = likely response)
+      texts.sort((a, b) => b.depth - a.depth)
+      return texts.slice(0, 5).map(t => t.text)
+    })
+
+    if (fullText.length === 0) return ''
+
+    // If we have the prompt, subtract it to find the response
+    if (prompt) {
+      for (const block of fullText) {
+        const cleaned = block.replace(prompt, '').trim()
+        if (cleaned.length > 0) return cleaned
       }
     }
 
-    // Fallback: try to get any visible text from the page
-    console.warn('[DeepSeekAdapter] No output container found, attempting fallback extraction')
-    const bodyText = await this.page.evaluate(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc = (globalThis as any).document
-      const allElements = doc.querySelectorAll('div, section, article')
-      let maxLen = 0
-      let result = ''
-      for (const el of allElements) {
-        const text = el.textContent?.trim() ?? ''
-        // Heuristic: response is usually > 20 chars and not the whole page
-        if (text.length > 20 && text.length < 5000 && text.length > maxLen) {
-          maxLen = text.length
-          result = text
-        }
-      }
-      return result
-    })
-
-    return bodyText || ''
+    // Return the deepest/largest text block
+    return fullText[0] ?? ''
   }
 
   /** Check if AI is currently generating */

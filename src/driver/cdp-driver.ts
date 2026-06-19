@@ -124,7 +124,7 @@ export class CDPDriver {
       await adapter.inputText(task.prompt)       // Input text
       await adapter.clickSubmit()                 // Click send
       await adapter.waitForCompletion()           // Wait for completion
-      const content = await adapter.extractOutput() // Extract reply
+      const content = await adapter.extractOutput(task.prompt) // Extract reply
 
       console.log(`[CDPDriver] Task ${task.taskId} completed, reply length: ${content.length}`)
 

@@ -27,7 +27,7 @@ export interface ISiteAdapter {
   inputText(prompt: string): Promise<void>
   clickSubmit(): Promise<void>
   waitForCompletion(): Promise<void>
-  extractOutput(): Promise<string>
+  extractOutput(prompt?: string): Promise<string>
   isGenerating(): boolean
   hasCaptcha(): boolean
 }

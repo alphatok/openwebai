@@ -77,7 +77,7 @@ export abstract class BaseAdapter implements ISiteAdapter {
   abstract inputText(prompt: string): Promise<void>
   abstract clickSubmit(): Promise<void>
   abstract waitForCompletion(): Promise<void>
-  abstract extractOutput(): Promise<string>
+  abstract extractOutput(prompt?: string): Promise<string>
   abstract isGenerating(): boolean
   abstract hasCaptcha(): boolean
 
