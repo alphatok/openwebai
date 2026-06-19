@@ -1,4 +1,4 @@
-import type { Page } from 'playwright'
+import type { Page, Route } from 'playwright'
 import { BaseAdapter } from '../base-adapter.js'
 import type { SiteConfig } from '../../types/adapter.js'
 import { AdapterError } from '../../errors/adapter-error.js'
@@ -6,49 +6,87 @@ import configJson from './config.json' with { type: 'json' }
 
 /**
  * DeepSeek site adapter.
- * Strategy: observe the page's SSE request via page.on('request'),
- * then make a parallel Node.js fetch() to read the FULL SSE body.
- * The page's own request passes through untouched.
+ * Uses page.route() to intercept SSE chat/completion requests.
+ * Reads the full SSE stream via ReadableStream reader (waits for stream end),
+ * captures content, then fulfills back to page seamlessly.
  */
 export class DeepSeekAdapter extends BaseAdapter {
   readonly siteId = 'deepseek'
   readonly config: SiteConfig = configJson as unknown as SiteConfig
 
   private capturedContent = ''
-  private sseUrl: string | null = null
-  private sseBody: string | null = null
-  private sseMethod = 'POST'
-  private sseHeaders: Record<string, string> = {}
-  private monitoring = false
+  private routeInstalled = false
 
   async init(page: Page): Promise<void> {
     await super.init(page)
-    if (!this.monitoring) {
-      this.observeRequests(page)
-      this.monitoring = true
+    if (!this.routeInstalled) {
+      await this.installRouteHandler(page)
+      this.routeInstalled = true
     }
   }
 
-  /** Observe page.on('request') to capture the SSE URL + headers for parallel fetch */
-  private observeRequests(page: Page): void {
-    page.on('request', async (request) => {
-      const url = request.url()
-      if (!url.includes('deepseek.com') || !url.includes('/chat/completion')) return
+  /** Install route handler — intercept SSE, pass through everything else */
+  private async installRouteHandler(page: Page): Promise<void> {
+    await page.route('**/*', async (route: Route) => {
+      const url = route.request().url()
 
-      console.log(`[DeepSeekAdapter] Observed SSE request: ${url.slice(0, 80)}...`)
-
-      const cookies = await page.context().cookies()
-      const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
-
-      this.sseUrl = url
-      this.sseMethod = request.method()
-      this.sseHeaders = {
-        ...request.headers(),
-        'Cookie': cookieStr,
-        'Accept': 'text/event-stream',
+      // Only intercept chat/completion SSE endpoint
+      if (!url.includes('deepseek.com') || !url.includes('/chat/completion')) {
+        await route.continue()
+        return
       }
-      this.sseBody = request.postData() || null
+
+      console.log(`[DeepSeekAdapter] Intercepted SSE: ${url.slice(0, 80)}...`)
+
+      try {
+        const response = await route.fetch()
+        const contentType = response.headers()['content-type'] || ''
+
+        if (contentType.includes('text/event-stream')) {
+          // Read the full SSE body via stream reader — waits for stream end
+          const body = await this.readStreamFully(response)
+          const bodyText = new TextDecoder().decode(body)
+          console.log(`[DeepSeekAdapter] SSE stream complete: ${bodyText.length} chars`)
+
+          // Parse before fulfilling
+          this.capturedContent = this.parseDeepSeekSSE(bodyText)
+          console.log(`[DeepSeekAdapter] Parsed content: ${this.capturedContent.slice(0, 100)}...`)
+
+          // Fulfill back to page — page gets the full response
+          await route.fulfill({
+            status: response.status(),
+            headers: response.headers(),
+            body: bodyText,
+          })
+        } else {
+          // Not SSE — just fulfill through
+          await route.fulfill({ response })
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[DeepSeekAdapter] Route error: ${msg}`)
+        await route.continue().catch(() => {})
+      }
     })
+
+    console.log('[DeepSeekAdapter] Route handler installed')
+  }
+
+  /**
+   * Read a response body stream fully until the stream ends.
+   * Playwright's response.text() only returns the first chunk for SSE,
+   * but response.body() returns a ReadableStream that we can drain completely.
+   */
+  private async readStreamFully(response: Awaited<ReturnType<Route['fetch']>>): Promise<Uint8Array> {
+    try {
+      // response.body() returns a readable stream, or buffer, or null
+      const body = await response.body()
+      return body
+    } catch {
+      // Fallback: try .text() and re-encode
+      const text = await response.text()
+      return new TextEncoder().encode(text)
+    }
   }
 
   async inputText(prompt: string): Promise<void> {
@@ -103,13 +141,12 @@ export class DeepSeekAdapter extends BaseAdapter {
         if (fragments) {
           for (const f of fragments) {
             if (f.type === 'RESPONSE' || f.type === 'TEXT') {
-              // Only take the latest complete fragment
               lastFragmentContent = f.content || ''
             }
           }
         }
 
-        // Fallback: check OpenAI-style format too
+        // Fallback: OpenAI-style
         const delta = chunk?.choices?.[0]?.delta?.content
         if (delta) result += delta
       } catch {
@@ -117,7 +154,6 @@ export class DeepSeekAdapter extends BaseAdapter {
       }
     }
 
-    // Use the last complete fragment content, or accumulated deltas
     if (lastFragmentContent) return lastFragmentContent
     if (result) return result
     return ''
@@ -127,55 +163,12 @@ export class DeepSeekAdapter extends BaseAdapter {
     if (!this.page) throw new AdapterError('PAGE_CLOSED', 'Page not initialized', false)
 
     const timeout = this.config.behavior.waitTimeoutMs
+    const interval = this.config.behavior.pollIntervalMs
     const start = Date.now()
 
-    // Wait a moment for the SSE URL to be observed (page.on('request') is async)
-    while (!this.sseUrl && Date.now() - start < 5000) {
-      await this.sleep(200)
-    }
-
-    if (!this.sseUrl) {
-      // Fallback: use last known SSE URL attempt
-      console.warn('[DeepSeekAdapter] SSE URL not observed after 5s - retrying with last request')
-      // Try to find it from CDP
-      if (this.page) {
-        try {
-          const cdp = await this.page.context().newCDPSession(this.page)
-          const requests = await cdp.send('Network.getResponseBody', { requestId: '' }).catch(() => null)
-          await cdp.detach()
-          if (!requests) {
-            // If all else fails, just wait with empty content check below
-          }
-        } catch { /* continue */ }
-      }
-    }
-
-    if (this.sseUrl) {
-      console.log(`[DeepSeekAdapter] Fetching SSE in parallel: ${this.sseUrl.slice(0, 80)}...`)
-
-      try {
-        const resp = await fetch(this.sseUrl, {
-          method: this.sseMethod,
-          headers: this.sseHeaders,
-          body: this.sseBody || undefined,
-        })
-
-        const body = await resp.text()
-        console.log(`[DeepSeekAdapter] Parallel fetch got ${body.length} chars`)
-
-        this.capturedContent = this.parseDeepSeekSSE(body)
-        console.log(`[DeepSeekAdapter] Parsed content: ${this.capturedContent.slice(0, 100)}...`)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error(`[DeepSeekAdapter] Parallel fetch error: ${msg}`)
-      }
-    }
-
-    // Wait for content to arrive
-    const interval = this.config.behavior.pollIntervalMs
+    // Wait for content to arrive and stabilize
     while (Date.now() - start < timeout) {
       if (this.capturedContent.length > 0) {
-        // Content captured — wait for it to stabilize (in case some still arriving)
         let prev = this.capturedContent.length
         let stable = 0
 
