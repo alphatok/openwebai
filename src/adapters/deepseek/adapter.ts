@@ -66,25 +66,18 @@ export class DeepSeekAdapter {
     '/user/', '/auth/', 'gator.volces.com', 'hif-dliq',
   ]
 
-  /** Check if data chunk looks like SSE chat data */
-  private looksLikeChatData(data: string): boolean {
-    return data.includes('data:') && (
-      data.includes('"choices"') ||
-      data.includes('"delta"') ||
-      data.includes('"content"') ||
-      data.includes('"fragments"') ||
-      data.includes('"response"') ||
-      data.includes('"v":') ||
-      data.includes('[DONE]')
-    )
-  }
+  private logDir = path.join(process.cwd(), 'logs')
+  private logFile = path.join(this.logDir, `sse-log-${Date.now()}.txt`)
+  private rawLogFile = path.join(this.logDir, `raw-log-${Date.now()}.txt`)
 
-  private logSessionId = Date.now().toString()
-  private logFile = path.join(process.cwd(), `sse-log-${Date.now()}.txt`)
-  private rawLogFile = path.join(process.cwd(), `raw-log-${Date.now()}.txt`)
+  // Incremental parsing state: track how many rawChunks have been parsed
+  private parsedChunkIndex = 0
+  private baseline = ''          // F4 snapshot content (基线)
+  private incremental = ''       // F1/F2 accumulated tokens (增量)
 
   private writeLog(tag: string, data: string): void {
     try {
+      if (!fs.existsSync(this.logDir)) fs.mkdirSync(this.logDir, { recursive: true })
       fs.appendFileSync(this.logFile, `[${tag}] ${data}\n`)
     } catch { /* ignore */ }
   }
@@ -92,6 +85,7 @@ export class DeepSeekAdapter {
   /** Write raw intercepted data — no filtering */
   private writeRawLog(entry: string): void {
     try {
+      if (!fs.existsSync(this.logDir)) fs.mkdirSync(this.logDir, { recursive: true })
       fs.appendFileSync(this.rawLogFile, entry)
     } catch { /* ignore */ }
   }
@@ -135,7 +129,7 @@ export class DeepSeekAdapter {
       if (this.rawChunks.length === 0) {
         console.log(`${TAG} ✅ Chat stream started! url=${url.slice(0, 80)}`)
         this.chatStreamUrl = url
-        this.logFile = path.join(process.cwd(), `sse-log-${Date.now()}.txt`)
+        this.logFile = path.join(this.logDir, `sse-log-${Date.now()}.txt`)
         this.writeLog('SESSION', `Chat stream started: ${url}`)
       }
       this.writeLog('CHUNK', `[${url}] ${data.slice(0, 300)}`)
@@ -155,10 +149,15 @@ export class DeepSeekAdapter {
 
   private chatStreamUrl = ''
 
-  /** Re-parse accumulated chunks whenever new data arrives */
+  /** Re-parse accumulated chunks whenever new data arrives (incremental) */
   private tryParseContent(): void {
-    const fullBody = this.rawChunks.join('\n')
-    this.capturedContent = this.parseDeepSeekSSE(fullBody)
+    // Only parse newly arrived rawChunks, append their text to this.incremental
+    if (this.parsedChunkIndex < this.rawChunks.length) {
+      const newChunks = this.rawChunks.slice(this.parsedChunkIndex)
+      this.parsedChunkIndex = this.rawChunks.length
+      this.parseNewChunks(newChunks)
+    }
+    this.capturedContent = this.baseline + this.incremental
   }
 
   /** Send a command to the browser and wait for response */
@@ -205,6 +204,9 @@ export class DeepSeekAdapter {
     this.rawChunks = []
     this.done = false
     this.chatStreamUrl = ''
+    this.parsedChunkIndex = 0
+    this.baseline = ''
+    this.incremental = ''
 
     console.log(`${TAG} Submitting (Enter key)...`)
 
@@ -264,17 +266,18 @@ export class DeepSeekAdapter {
     console.warn(`${TAG} TIMEOUT after ${timeout}ms. content=${this.capturedContent.length} chars`)
   }
 
-  /** Parse DeepSeek SSE format from accumulated body */
-  private parseDeepSeekSSE(body: string): string {
+  /** Incrementally parse new chunks only — appends to this.baseline / this.incremental */
+  private parseNewChunks(chunks: string[]): void {
+    const body = chunks.join('\n')
     const lines = body.split('\n')
-    let accumulated = ''
-    let lastFullContent = ''
-    let lineCount = 0
     let dataLineCount = 0
-    let unknownCount = 0
+
+    const isStatusKeyword = (s: string): boolean => {
+      const statusWords = ['FINISHED', 'DONE', 'WIP', 'STARTED', 'PAUSED', 'TERMINATED', 'ABORTED', 'CANCELED']
+      return statusWords.includes(s.trim().toUpperCase())
+    }
 
     for (const line of lines) {
-      lineCount++
       if (!line.startsWith('data: ')) continue
       dataLineCount++
       const jsonStr = line.slice(6).trim()
@@ -282,92 +285,87 @@ export class DeepSeekAdapter {
 
       try {
         const chunk = JSON.parse(jsonStr)
-        const keys = Object.keys(chunk).join(',')
+        const keys = Object.keys(chunk)
 
-        // Format 1: {"v": "text"} — simple token
-        if (typeof chunk.v === 'string') {
-          accumulated += chunk.v
-          this.writeLog('PARSE-F1', `v="${chunk.v}" accumulated=${accumulated.length}`)
+        // Skip metadata: request_message_id, click_behavior, etc.
+        if (keys.includes('request_message_id') || keys.includes('click_behavior') || keys.includes('auto_resume')) {
           continue
         }
 
-        // Format 2: {"p": "...", "o": "APPEND", "v": "text"}
-        if (chunk.o === 'APPEND' && typeof chunk.v === 'string') {
-          const p = String(chunk.p || '')
-          this.writeLog('PARSE-F2', `p="${p}" o=APPEND v="${chunk.v}"`)
-          if (p.includes('content') || p.includes('fragment') || p === '') {
-            accumulated += chunk.v
-          }
-          continue
-        }
-
-        // Format 2b: {"p": "...", "o": "SET", "v": "value"} — status updates, NOT content
-        if (chunk.o === 'SET' && typeof chunk.v === 'string') {
-          const p = String(chunk.p || '')
-          this.writeLog('PARSE-F2', `p="${p}" o=SET v="${chunk.v}" (skipped, status field)`)
-          continue
-        }
-
-        // Format 3: {"o": "BATCH", "v": [...]}
-        if (chunk.o === 'BATCH' && Array.isArray(chunk.v)) {
-          this.writeLog('PARSE-F3', `BATCH ops=${chunk.v.length}`)
-          for (const op of chunk.v) {
-            // Skip non-content patches (status, token_usage, etc.)
-            if (op.o === 'SET') continue
-            if (op.o === 'APPEND' && typeof op.v === 'string') {
-              const p = String(op.p || '')
-              if (p.includes('content') || p.includes('fragment') || p === '') {
-                accumulated += op.v
-              }
-            }
-          }
-          continue
-        }
-
-        // Format 4: full response object {"v": {response: {fragments: [...]}}}
+        // F4: response snapshot — set baseline from fragments
         const fragments = chunk?.v?.response?.fragments as Array<{ type: string; content: string }> | undefined
         if (fragments) {
           for (const f of fragments) {
             if ((f.type === 'RESPONSE' || f.type === 'TEXT') && f.content) {
-              if (f.content.length > lastFullContent.length) {
+              if (f.content.length > this.baseline.length) {
                 this.writeLog('PARSE-F4', `fragment type=${f.type} len=${f.content.length}`)
-                lastFullContent = f.content
+                this.baseline = f.content
               }
             }
           }
           const rc = chunk?.v?.response?.content
-          if (rc && typeof rc === 'string' && rc.length > lastFullContent.length) {
-            lastFullContent = rc
+          if (rc && typeof rc === 'string' && rc.length > this.baseline.length) {
+            this.baseline = rc
           }
           continue
         }
 
-        // Format 5: {"updated_at": 12345} — session keepalive, skip
-        if (chunk.updated_at !== undefined && keys.length <= 2) {
-          this.writeLog('PARSE-SKIP', `keepalive updated_at=${chunk.updated_at}`)
+        // F2: path-based patch — only APPEND on content path
+        if (chunk.o === 'APPEND' && typeof chunk.v === 'string') {
+          const p = String(chunk.p || '')
+          this.writeLog('PARSE-F2', `p="${p}" o=APPEND v="${chunk.v.slice(0,20)}"`)
+          if (p.includes('content') || p.includes('fragment') || p === '') {
+            this.incremental += chunk.v
+          }
           continue
         }
 
+        // F2b: SET on status path — skip (not content)
+        if (chunk.o === 'SET') {
+          continue
+        }
+
+        // F3: BATCH ops — only extract APPEND on content paths
+        if (chunk.o === 'BATCH' && Array.isArray(chunk.v)) {
+          this.writeLog('PARSE-F3', `BATCH ops=${chunk.v.length}`)
+          for (const op of chunk.v) {
+            if (op.o === 'SET') continue
+            if (op.o === 'APPEND' && typeof op.v === 'string') {
+              const p = String(op.p || '')
+              if (p.includes('content') || p.includes('fragment') || p === '') {
+                this.incremental += op.v
+              }
+            }
+          }
+          continue
+        }
+
+        // F1: simple token {"v": "text"} — most common
+        if (typeof chunk.v === 'string' && !chunk.o && !chunk.p && !isStatusKeyword(chunk.v)) {
+          this.incremental += chunk.v
+          this.writeLog('PARSE-F1', `v="${chunk.v.length > 5 ? chunk.v.slice(0, 30) + '...' : chunk.v}" accumulated=${this.baseline.length + this.incremental.length}`)
+          continue
+        }
+
+        // Skip keepalive / status keywords
+        if (chunk.updated_at !== undefined) continue
+        if (typeof chunk.v === 'string' && isStatusKeyword(chunk.v)) continue
+
         // OpenAI-style fallback
         const delta = chunk?.choices?.[0]?.delta?.content
-        if (delta) { accumulated += delta; continue }
-        if (typeof chunk.content === 'string') { accumulated += chunk.content; continue }
+        if (delta) { this.incremental += delta; continue }
+        if (typeof chunk.content === 'string') { this.incremental += chunk.content; continue }
 
-        // Unknown format — output placeholder so we can see missing data
-        unknownCount++
-        accumulated += `_______${unknownCount}_______`
-        this.writeLog('PARSE-UNKNOWN', `#${unknownCount} keys=${keys} json=${jsonStr.slice(0, 200)}`)
+        this.writeLog('PARSE-SKIP', `keys=${keys.join(',')} (non-content)`)
 
       } catch (e: unknown) {
         this.writeLog('PARSE-ERROR', `err=${e instanceof Error ? e.message : String(e)} line=${line.slice(0, 100)}`)
       }
     }
 
-    const result = lastFullContent.length > accumulated.length ? lastFullContent : accumulated
-    console.log(`${TAG} parseDeepSeekSSE: lines=${lineCount} dataLines=${dataLineCount} accumulated=${accumulated.length} full=${lastFullContent.length} unknown=${unknownCount} → ${result.length} chars`)
-    this.writeLog('RESULT', `accumulated=${accumulated.length} full=${lastFullContent.length} result=${result.length} unknownBlocks=${unknownCount} preview="${result.slice(0, 100)}"`)
-    if (result) console.log(`${TAG} Content preview: "${result.slice(0, 100)}"`)
-    return result
+    const total = this.baseline.length + this.incremental.length
+    this.writeLog('RESULT', `baseline=${this.baseline.length} incremental=${this.incremental.length} total=${total}`)
+    if (total > 0) console.log(`${TAG} parseChunks: +${dataLineCount} dataLines → total=${total} chars, preview="${(this.baseline + this.incremental).slice(0, 80)}"`)
   }
 
   async extractOutput(_prompt?: string): Promise<string> {
