@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenWebAI Debug</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:monospace; background:#111; color:#e0e0e0; padding:16px; }
+h2 { margin-bottom:8px; font-size:16px; color:#888; }
+#chat { height:60vh; overflow-y:auto; border:1px solid #333; padding:8px; margin-bottom:8px; background:#0a0a0a; }
+.msg { margin:4px 0; padding:4px 8px; border-radius:4px; white-space:pre-wrap; word-break:break-all; font-size:13px; }
+.msg.user { background:#1a1a3a; color:#c084fc; }
+.msg.assistant { background:#1a2a1a; color:#4ade80; }
+.msg.error { background:#2a0d0d; color:#f87171; }
+.msg.raw { background:#111; color:#888; font-size:11px; border-left:2px solid #444; margin:2px 0 8px 0; }
+.input-row { display:flex; gap:8px; }
+input { flex:1; padding:8px 12px; background:#1a1a2e; border:1px solid #333; border-radius:4px; color:#fff; font-family:monospace; outline:none; }
+input:focus { border-color:#6366f1; }
+button { padding:8px 16px; background:#6366f1; border:none; border-radius:4px; color:#fff; cursor:pointer; font-family:monospace; }
+button:hover { opacity:.85; }
+button:disabled { opacity:.4; cursor:not-allowed; }
+</style>
+</head>
+<body>
+<h2>OpenWebAI Debug Chat</h2>
+<div id="chat"></div>
+<div class="input-row">
+  <input id="input" placeholder="Type a message..." autofocus>
+  <button id="sendBtn" onclick="send()">Send</button>
+</div>
+
+<script>
+const API_KEY = 'test123456'
+let streaming = false
+
+async function send() {
+  const input = document.getElementById('input')
+  const msg = input.value.trim()
+  if (!msg || streaming) return
+
+  input.value = ''
+  addMsg('user', msg)
+  streaming = true
+  document.getElementById('sendBtn').disabled = true
+
+  let rawText = ''
+
+  try {
+    const resp = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+      body: JSON.stringify({ model: 'deepseek', messages: [{ role: 'user', content: msg }] }),
+    })
+
+    const text = await resp.text()
+    rawText = text
+
+    try {
+      const json = JSON.parse(text)
+      if (json.choices && json.choices[0]) {
+        addMsg('assistant', json.choices[0].message.content)
+      } else if (json.error) {
+        addMsg('error', json.error.message || JSON.stringify(json.error))
+      } else {
+        addMsg('raw', JSON.stringify(json, null, 2))
+      }
+    } catch {
+      addMsg('raw', text)
+    }
+  } catch (e) {
+    addMsg('error', e.message)
+  }
+
+  addMsg('raw', '--- RAW RESPONSE ---\n' + rawText)
+  streaming = false
+  document.getElementById('sendBtn').disabled = false
+  input.focus()
+}
+
+function addMsg(role, text) {
+  const chat = document.getElementById('chat')
+  const div = document.createElement('div')
+  div.className = 'msg ' + role
+  div.textContent = text
+  chat.appendChild(div)
+  chat.scrollTop = chat.scrollHeight
+}
+
+document.getElementById('input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+})
+</script>
+</body>
+</html>

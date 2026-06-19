@@ -42,6 +42,11 @@ export async function createGateway(queue: TaskQueue) {
     return reply.sendFile('index.html')
   })
 
+  // Debug chat page
+  app.get('/debug', (_req, reply) => {
+    return reply.sendFile('debug.html')
+  })
+
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))
 
