@@ -29,9 +29,11 @@ export interface AnthropicRequest {
   model: string
   messages: AnthropicMessage[]
   stream?: boolean
-  max_tokens?: number
+  max_tokens: number  // required in Anthropic API
   temperature?: number
+  top_k?: number
   system?: string
+  stop_sequences?: string[]
 }
 
 /** Anthropic message (content can be string or content blocks) */

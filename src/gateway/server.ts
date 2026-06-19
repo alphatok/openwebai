@@ -14,6 +14,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const WEB_ROOT = path.resolve(__dirname, '../../web')
 
 const API_KEY = 'test123456'
+const ANTHROPIC_VERSIONS = ['2023-01-01', '2023-06-01']
+
+/** Rough token estimate: ~4 chars per token for mixed CJK/English */
+function estimateTokens(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 4))
+}
 
 /** Verify Authorization / x-api-key header */
 function verifyApiKey(request: FastifyRequest): boolean {
@@ -24,6 +30,19 @@ function verifyApiKey(request: FastifyRequest): boolean {
   }
   const xApiKey = request.headers['x-api-key']
   return xApiKey === API_KEY
+}
+
+/** Verify Anthropic API key and version headers */
+function verifyAnthropicApi(request: FastifyRequest): { valid: boolean; error?: string } {
+  const xApiKey = request.headers['x-api-key']
+  if (!xApiKey || xApiKey !== API_KEY) {
+    return { valid: false, error: 'Invalid API key' }
+  }
+  const version = request.headers['anthropic-version']
+  if (!version || !ANTHROPIC_VERSIONS.includes(version as string)) {
+    return { valid: false, error: `Invalid anthropic-version header. Supported: ${ANTHROPIC_VERSIONS.join(', ')}` }
+  }
+  return { valid: true }
 }
 
 /** Execute a chat task via the adapter */
@@ -84,12 +103,13 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
   // Debug: return latest SSE log file content
   app.get('/debug/sse-log', async (_req, reply) => {
     try {
-      const files = fs.readdirSync(process.cwd())
+      const logsDir = path.join(process.cwd(), 'logs')
+      const files = fs.readdirSync(logsDir)
         .filter(f => f.startsWith('sse-log-') && f.endsWith('.txt'))
         .sort()
         .reverse()
       if (files.length === 0) return reply.send({ lines: [] })
-      const content = fs.readFileSync(path.join(process.cwd(), files[0]), 'utf-8')
+      const content = fs.readFileSync(path.join(logsDir, files[0]!), 'utf-8')
       const lines = content.split('\n').filter(l => l.trim())
       return reply.send({ file: files[0], lines })
     } catch {
@@ -100,12 +120,13 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
   // Debug: return latest raw-log file
   app.get('/debug/raw-log', async (_req, reply) => {
     try {
-      const files = fs.readdirSync(process.cwd())
+      const logsDir = path.join(process.cwd(), 'logs')
+      const files = fs.readdirSync(logsDir)
         .filter(f => f.startsWith('raw-log-') && f.endsWith('.txt'))
         .sort()
         .reverse()
       if (files.length === 0) return reply.send({ lines: [] })
-      const content = fs.readFileSync(path.join(process.cwd(), files[0]), 'utf-8')
+      const content = fs.readFileSync(path.join(logsDir, files[0]!), 'utf-8')
       const lines = content.split('\n').filter(l => l.trim())
       return reply.send({ file: files[0], lines })
     } catch {
@@ -153,21 +174,22 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
     try {
       if (body.stream) {
         // Stream response - SSE
+        const created = Math.floor(Date.now() / 1000)
         reply.raw.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           Connection: 'keep-alive',
         })
 
-        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`)
+        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`)
 
         const result = await executeTask(adapter, prompt)
 
         if (result.content) {
-          reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: { content: result.content }, finish_reason: null }] })}\n\n`)
+          reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: { content: result.content }, finish_reason: null }] })}\n\n`)
         }
 
-        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', model: body.model, choices: [{ delta: {}, finish_reason: result.error ? 'stop' : 'stop' }] })}\n\n`)
+        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: {}, finish_reason: result.error ? 'stop' : 'stop' }] })}\n\n`)
         reply.raw.write('data: [DONE]\n\n')
         reply.raw.end()
       } else {
@@ -175,16 +197,25 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
         const result = await executeTask(adapter, prompt)
 
         if (result.content !== undefined) {
+          const promptTokens = estimateTokens(prompt)
+          const completionTokens = estimateTokens(result.content)
           reply.send({
             id: `chatcmpl-${taskId}`,
             object: 'chat.completion',
+            created: Math.floor(Date.now() / 1000),
             model: body.model,
             choices: [
               {
+                index: 0,
                 message: { role: 'assistant', content: result.content },
                 finish_reason: 'stop',
               },
             ],
+            usage: {
+              prompt_tokens: promptTokens,
+              completion_tokens: completionTokens,
+              total_tokens: promptTokens + completionTokens,
+            },
           })
           return
         }
@@ -213,8 +244,9 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
     const body = request.body as AnthropicRequest
     console.log('[Gateway] POST /v1/messages', { model: body?.model, msgCount: body?.messages?.length })
 
-    if (!verifyApiKey(request)) {
-      reply.code(401).send({ error: { type: 'authentication_error', message: 'Invalid API key' } })
+    const authCheck = verifyAnthropicApi(request)
+    if (!authCheck.valid) {
+      reply.code(401).send({ error: { type: 'authentication_error', message: authCheck.error } })
       return
     }
 
@@ -222,8 +254,19 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
       console.warn('[Gateway] Extension not connected — request will likely timeout')
     }
 
+    if (!body.max_tokens) {
+      reply.code(400).send({ error: { type: 'invalid_request_error', message: 'max_tokens is required' } })
+      return
+    }
+
     if (!body.messages?.length) {
       reply.code(400).send({ error: { type: 'invalid_request_error', message: 'messages is required' } })
+      return
+    }
+
+    // Anthropic: first message must be user, strict alternation
+    if (body.messages?.[0]?.role !== 'user') {
+      reply.code(400).send({ error: { type: 'invalid_request_error', message: 'first message must be from user' } })
       return
     }
 
@@ -266,14 +309,13 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
           Connection: 'keep-alive',
         })
 
+        const inputTokens = estimateTokens(prompt)
+
         // message_start
-        reply.raw.write(`event: message_start\ndata: ${JSON.stringify({ type: 'message_start', message: { id: `msg_${taskId}`, type: 'message', role: 'assistant', model: body.model || 'deepseek', content: [], stop_reason: null } })}\n\n`)
+        reply.raw.write(`event: message_start\ndata: ${JSON.stringify({ type: 'message_start', message: { id: `msg_${taskId}`, type: 'message', role: 'assistant', content: [], model: body.model, stop_reason: null, stop_sequence: null, usage: { input_tokens: inputTokens, output_tokens: 0 } } })}\n\n`)
 
         // content_block_start
         reply.raw.write(`event: content_block_start\ndata: ${JSON.stringify({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })}\n\n`)
-
-        // ping
-        reply.raw.write(`event: ping\ndata: {}\n\n`)
 
         const result = await executeTask(adapter, prompt)
 
@@ -285,8 +327,9 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
         // content_block_stop
         reply.raw.write(`event: content_block_stop\ndata: ${JSON.stringify({ type: 'content_block_stop', index: 0 })}\n\n`)
 
+        const outputTokens = result.content ? estimateTokens(result.content) : 0
         // message_delta
-        reply.raw.write(`event: message_delta\ndata: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: result.error ? 'error' : 'end_turn' }, usage: { output_tokens: result.content ? result.content.length : 0 } })}\n\n`)
+        reply.raw.write(`event: message_delta\ndata: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: result.error ? 'max_tokens' : 'end_turn', stop_sequence: null }, usage: { output_tokens: outputTokens } })}\n\n`)
 
         // message_stop
         reply.raw.write(`event: message_stop\ndata: ${JSON.stringify({ type: 'message_stop' })}\n\n`)
@@ -296,21 +339,24 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
         const result = await executeTask(adapter, prompt)
 
         if (result.content !== undefined) {
+          const inputTokens = estimateTokens(prompt)
+          const outputTokens = estimateTokens(result.content)
           reply.send({
             id: `msg_${taskId}`,
             type: 'message',
             role: 'assistant',
             content: [{ type: 'text', text: result.content }],
-            model: body.model || 'deepseek',
+            model: body.model,
             stop_reason: 'end_turn',
             stop_sequence: null,
-            usage: { input_tokens: 0, output_tokens: result.content.length },
+            usage: { input_tokens: inputTokens, output_tokens: outputTokens },
           })
           return
         }
 
         if (result.error) {
           reply.code(500).send({
+            type: 'error',
             error: { type: 'api_error', message: result.error.message },
           })
           return
@@ -322,7 +368,7 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
         reply.raw.write(`event: error\ndata: ${JSON.stringify({ type: 'error', error: { type: 'api_error', message } })}\n\n`)
         reply.raw.end()
       } else {
-        reply.code(500).send({ error: { type: 'api_error', message } })
+        reply.code(500).send({ type: 'error', error: { type: 'api_error', message } })
       }
     }
   })
