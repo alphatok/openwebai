@@ -53,6 +53,7 @@ export async function createGateway(queue: TaskQueue) {
   // OpenAI-compatible endpoint: /v1/chat/completions
   app.post('/v1/chat/completions', async (request, reply): Promise<void> => {
     const body = request.body as ChatRequest
+    console.log('[Gateway] POST /v1/chat/completions', { model: body?.model, msgCount: body?.messages?.length })
 
     // API key verification
     if (!verifyApiKey(request)) {
