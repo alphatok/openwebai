@@ -4,7 +4,7 @@ import type { SiteConfig } from '../../types/adapter.js'
 import { AdapterError } from '../../errors/adapter-error.js'
 import configJson from './config.json' with { type: 'json' }
 
-/** DeepSeek site adapter — intercepts SSE stream from network, not DOM */
+/** DeepSeek site adapter — intercepts SSE stream via Node.js fetch for full capture */
 export class DeepSeekAdapter extends BaseAdapter {
   readonly siteId = 'deepseek'
   readonly config: SiteConfig = configJson as unknown as SiteConfig
@@ -57,7 +57,7 @@ export class DeepSeekAdapter extends BaseAdapter {
     }
   }
 
-  /** Setup Playwright route interception to capture SSE response */
+  /** Setup Playwright route interception — captures SSE via external fetch */
   private async setupRouteInterception(): Promise<void> {
     if (!this.page || this.routeActive) return
     this.routeActive = true
@@ -67,23 +67,55 @@ export class DeepSeekAdapter extends BaseAdapter {
 
       // Only intercept DeepSeek chat API calls
       if (this.isChatApiUrl(url)) {
-        try {
-          // Fetch the real response from server
-          const response = await route.fetch()
-          const contentType = response.headers()['content-type'] || ''
+        const reqHeaders = route.request().headers()
+        const postData = route.request().postData()
 
-          if (contentType.includes('text/event-stream')) {
-            // Read the full SSE body
-            const body = await response.text()
-            this.parseSSEBody(body)
-            console.log(`[DeepSeekAdapter] Captured SSE: ${this.capturedContent.slice(0, 80)}...`)
+        // Abort page's request — we'll proxy it ourselves to capture the full SSE
+        await route.abort()
+
+        console.log(`[DeepSeekAdapter] Proxying SSE request: ${url.slice(0, 80)}...`)
+
+        try {
+          // Build cookie header from browser context for auth
+          const cookies = await this.page!.context().cookies()
+          const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
+
+          // Merge headers, add cookie
+          const headers: Record<string, string> = {
+            ...reqHeaders,
+            'Cookie': cookieStr,
+            'Accept': 'text/event-stream',
           }
 
-          // Fulfill the page's request with the real response
-          await route.fulfill({ response })
+          // Make our own fetch — Node.js fetch reads the full SSE body
+          const resp = await fetch(url, {
+            method: route.request().method(),
+            headers,
+            body: postData || undefined,
+          })
+
+          // response.text() on Node.js fetch waits for the full SSE stream to end
+          const body = await resp.text()
+          this.parseSSEBody(body)
+
+          // Get response headers
+          const respHeaders: Record<string, string> = {}
+          resp.headers.forEach((value, key) => {
+            respHeaders[key] = value
+          })
+
+          // Fulfill the page's request with the captured response
+          await route.fulfill({
+            status: resp.status,
+            headers: respHeaders,
+            body,
+          })
+
+          console.log(`[DeepSeekAdapter] SSE captured: ${this.capturedContent.slice(0, 100)}...`)
         } catch (err) {
-          console.error('[DeepSeekAdapter] Route interception error:', err)
-          await route.continue()
+          const message = err instanceof Error ? err.message : String(err)
+          console.error(`[DeepSeekAdapter] Proxy error: ${message}`)
+          await route.fulfill({ status: 500, body: '{}' })
         }
       } else {
         await route.continue()
@@ -99,6 +131,7 @@ export class DeepSeekAdapter extends BaseAdapter {
 
   /** Parse SSE (text/event-stream) body into capturedContent */
   private parseSSEBody(body: string): void {
+    console.log(`[DeepSeekAdapter] Raw SSE body (${body.length} chars):\n${body.slice(0, 500)}\n---`)
     const lines = body.split('\n')
     for (const line of lines) {
       // SSE format: "data: {...json...}"
@@ -112,6 +145,7 @@ export class DeepSeekAdapter extends BaseAdapter {
           const delta = chunk?.choices?.[0]?.delta?.content
           if (delta) {
             this.capturedContent += delta
+            console.log(`[DeepSeekAdapter] delta: "${delta.slice(0, 60)}" (total: ${this.capturedContent.length})`)
           }
           // Some APIs use different format: chunk.content or chunk.message.content
           const altContent = chunk?.content || chunk?.message?.content
