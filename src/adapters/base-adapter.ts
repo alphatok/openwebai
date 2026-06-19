@@ -62,6 +62,8 @@ export abstract class BaseAdapter implements ISiteAdapter {
       ['outputContainer', selectors.outputContainer],
     ]
     for (const [name, sel] of checks) {
+      // Skip non-CSS values like "Enter" (keyboard shortcut)
+      if (typeof sel !== 'string' || sel.length === 0 || /^[A-Z][a-z]+$/.test(sel)) continue
       try {
         const el = await page.$(sel)
         if (!el && !sel.includes(',')) {
