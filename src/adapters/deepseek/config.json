@@ -1,0 +1,1 @@
+{"siteId": "deepseek", "siteName": "DeepSeek", "url": "https://chat.deepseek.com", "selectors": {"input": "", "submitButton": "", "stopButton": "", "outputContainer": "", "captchaIndicator": ""}, "behavior": {"typingDelayMs": [50, 200], "waitTimeoutMs": 120000, "pollIntervalMs": 500}}
