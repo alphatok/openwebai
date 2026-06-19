@@ -48,27 +48,34 @@ export class CDPDriver {
     return this.adapters.get(siteId)
   }
 
-  /** Launch browser using local Chrome */
+  /** Launch browser with persistent context (login state saved across sessions) */
   async launch(): Promise<void> {
     const { chromium } = await import('playwright')
-    this.browser = await chromium.launch({
+    const path = await import('path')
+    const os = await import('os')
+
+    // Use persistent context so login state (cookies) is saved to disk
+    const userDataDir = path.join(os.homedir(), '.openwebai', 'chrome-profile')
+
+    this.context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chrome',
       headless: false,
       args: ['--disable-blink-features=AutomationControlled'],
     })
-    this.context = await this.browser.newContext()
-    const page = await this.context.newPage()
+
+    // Persistent context provides pages directly
+    const page = this.context.pages()[0] ?? await this.context.newPage()
     this.managedPage = new ManagedPage(page)
 
     // Navigate to first registered adapter's site if available
     const firstAdapter = this.adapters.values().next().value
     if (firstAdapter) {
       console.log(`[CDPDriver] Navigating to ${firstAdapter.config.url} ...`)
-      console.log('[CDPDriver] >>> Please LOG IN to the site in the browser window <<<')
+      console.log('[CDPDriver] >>> Please LOG IN if needed (login is remembered after first time) <<<')
       await page.goto(firstAdapter.config.url, { waitUntil: 'domcontentloaded' })
     }
 
-    console.log('[CDPDriver] Browser launched')
+    console.log('[CDPDriver] Browser launched (persistent profile)')
   }
 
   /** Execute task: complete a conversation on specified site */
