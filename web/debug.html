@@ -11,66 +11,69 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; ba
 /* 顶栏 */
 .topbar { display:flex; align-items:center; gap:12px; padding:10px 16px; background:#1a1a24; border-bottom:1px solid #2a2a3a; flex-shrink:0; }
 .topbar h1 { font-size:15px; color:#a78bfa; font-weight:600; }
-.topbar .back { color:#666; text-decoration:none; font-size:13px; }
+.topbar .back { color:#888; text-decoration:none; font-size:13px; }
 .topbar .back:hover { color:#a78bfa; }
-.badge { font-size:11px; padding:2px 8px; border-radius:10px; background:#1e1e30; color:#7c3aed; border:1px solid #3b2f6e; }
+.badge { font-size:12px; padding:2px 10px; border-radius:10px; background:#1e1e30; color:#7c3aed; border:1px solid #3b2f6e; }
 
 /* 主体布局 */
 .main { display:flex; flex:1; overflow:hidden; gap:0; }
 
 /* 左栏：聊天 */
-.panel-chat { display:flex; flex-direction:column; width:360px; flex-shrink:0; border-right:1px solid #2a2a3a; }
-.panel-title { padding:8px 14px; font-size:12px; color:#666; border-bottom:1px solid #1e1e2e; text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; justify-content:space-between; }
-.panel-title .clear-btn { font-size:11px; color:#444; cursor:pointer; background:none; border:none; color:#555; }
+.panel-chat { display:flex; flex-direction:column; width:380px; flex-shrink:0; border-right:1px solid #2a2a3a; }
+.panel-title { padding:8px 14px; font-size:13px; color:#888; border-bottom:1px solid #1e1e2e; text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; justify-content:space-between; }
+.panel-title .clear-btn { font-size:12px; color:#555; cursor:pointer; background:none; border:none; }
 .panel-title .clear-btn:hover { color:#a78bfa; }
 
 .chat-messages { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
-.msg { padding:8px 10px; border-radius:6px; font-size:13px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+.msg { padding:8px 10px; border-radius:6px; font-size:14px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
 .msg.user { background:#1e1a3a; color:#c084fc; border-left:3px solid #7c3aed; }
 .msg.assistant { background:#162016; color:#4ade80; border-left:3px solid #16a34a; }
 .msg.error { background:#200d0d; color:#f87171; border-left:3px solid #dc2626; }
-.msg.system { background:#141414; color:#555; font-size:11px; text-align:center; border:1px dashed #2a2a3a; }
+.msg.system { background:#141414; color:#777; font-size:12px; text-align:center; border:1px dashed #2a2a3a; }
 
 .input-row { display:flex; gap:6px; padding:10px; border-top:1px solid #2a2a3a; flex-shrink:0; }
-.input-row input { flex:1; padding:8px 10px; background:#1a1a2e; border:1px solid #2a2a3a; border-radius:5px; color:#fff; font-size:13px; outline:none; }
+.input-row input { flex:1; padding:8px 10px; background:#1a1a2e; border:1px solid #2a2a3a; border-radius:5px; color:#fff; font-size:14px; outline:none; }
 .input-row input:focus { border-color:#6366f1; }
-.input-row button { padding:8px 14px; background:#6366f1; border:none; border-radius:5px; color:#fff; cursor:pointer; font-size:13px; white-space:nowrap; }
+.input-row button { padding:8px 14px; background:#6366f1; border:none; border-radius:5px; color:#fff; cursor:pointer; font-size:14px; white-space:nowrap; }
 .input-row button:disabled { opacity:.4; cursor:not-allowed; }
 
 /* 右栏：调试日志 */
-.panel-debug { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.panel-debug { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
 .debug-tabs { display:flex; border-bottom:1px solid #2a2a3a; flex-shrink:0; }
-.tab { padding:8px 16px; font-size:12px; color:#555; cursor:pointer; border-bottom:2px solid transparent; }
+.tab { padding:8px 18px; font-size:13px; color:#777; cursor:pointer; border-bottom:2px solid transparent; }
 .tab.active { color:#a78bfa; border-bottom-color:#7c3aed; }
-.tab:hover:not(.active) { color:#888; }
+.tab:hover:not(.active) { color:#bbb; }
 
-.tab-content { flex:1; overflow-y:auto; padding:10px; font-family:monospace; font-size:12px; line-height:1.6; display:none; }
-.tab-content.active { display:block; }
+.tab-content { display:none; padding:10px; font-family:monospace; font-size:13px; line-height:1.6; }
+.tab-content.active { display:flex; flex-direction:column; flex:1; min-height:0; overflow-y:auto; }
+#tab-sse > div, #tab-raw > div, #tab-stats > div { flex:none; }
 
 /* SSE 日志 */
-.sse-line { padding:2px 6px; border-radius:3px; margin:1px 0; }
-.sse-line.f1 { color:#4ade80; }
-.sse-line.f2 { color:#60a5fa; }
-.sse-line.f3 { color:#f59e0b; }
-.sse-line.f4 { color:#a78bfa; }
-.sse-line.unknown { color:#555; }
-.sse-line.error { color:#f87171; }
-.sse-line.raw { color:#3a3a5a; }
+.sse-line { padding:3px 8px; border-radius:3px; margin:1px 0; font-size:13px; }
+.sse-line.f1 { color:#4ade80; font-weight:600; }
+.sse-line.f2 { color:#60a5fa; font-weight:600; }
+.sse-line.f3 { color:#fbbf24; font-weight:600; }
+.sse-line.f4 { color:#c084fc; font-weight:600; }
+.sse-line.unknown { color:#f59e0b; background:#1e1800; }
+.sse-line.error { color:#f87171; background:#1a0000; }
+.sse-line.raw { color:#7a7aaa; }
 .sse-line.done { color:#22d3ee; font-weight:bold; }
-.sse-line.session { color:#888; border-top:1px solid #2a2a3a; padding-top:6px; margin-top:4px; }
+.sse-line.session { color:#a1a1aa; border-top:1px solid #2a2a3a; padding-top:6px; margin-top:4px; font-weight:500; }
 
 /* 状态卡片 */
 .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
-.stat-card { background:#1a1a24; border:1px solid #2a2a3a; border-radius:6px; padding:10px; }
-.stat-card .label { font-size:11px; color:#555; margin-bottom:4px; }
-.stat-card .value { font-size:20px; font-weight:bold; color:#a78bfa; }
+.stat-card { background:#1a1a24; border:1px solid #2a2a3a; border-radius:6px; padding:12px; }
+.stat-card .label { font-size:12px; color:#888; margin-bottom:4px; }
+.stat-card .value { font-size:22px; font-weight:bold; color:#a78bfa; line-height:1.2; }
 
 /* 原始数据 */
-.raw-block { background:#0a0a0f; border:1px solid #1e1e2e; border-radius:4px; padding:8px; margin:4px 0; white-space:pre-wrap; word-break:break-all; color:#4a4a6a; font-size:11px; }
-.raw-block.highlight { color:#888; border-color:#2a2a4a; }
+.raw-block { background:#0a0a0f; border:1px solid #2a2a3a; border-radius:4px; padding:10px; margin:4px 0; white-space:pre-wrap; word-break:break-all; color:#9a9aaa; font-size:13px; line-height:1.5; }
+.raw-block.highlight { color:#c0c0d0; border-color:#4a4a6a; }
+
+#statsLog { color:#888; font-size:13px; margin-top:8px; }
 
 /* 自动滚动 */
-.autoscroll-toggle { font-size:11px; color:#555; cursor:pointer; user-select:none; }
+.autoscroll-toggle { font-size:12px; color:#777; cursor:pointer; user-select:none; }
 .autoscroll-toggle.on { color:#4ade80; }
 
 /* 滚动条 */
@@ -190,6 +193,8 @@ function switchTab(name) {
   })
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
   document.getElementById('tab-' + name).classList.add('active')
+  // Auto-load raw log when switching to raw tab
+  if (name === 'raw') fetchRawLog()
 }
 
 function scrollToBottom(id) {
@@ -199,7 +204,11 @@ function scrollToBottom(id) {
 }
 
 function addSSELine(cls, text) {
+  const MAX_LINES = 2000
   const log = document.getElementById('sseLog')
+  while (log.childElementCount >= MAX_LINES) {
+    log.firstElementChild?.remove()
+  }
   const div = document.createElement('div')
   div.className = 'sse-line ' + cls
   div.textContent = text
@@ -208,7 +217,11 @@ function addSSELine(cls, text) {
 }
 
 function addRawBlock(text, highlight) {
+  const MAX_BLOCKS = 2000
   const log = document.getElementById('rawLog')
+  while (log.childElementCount >= MAX_BLOCKS) {
+    log.firstElementChild?.remove()
+  }
   const div = document.createElement('div')
   div.className = 'raw-block' + (highlight ? ' highlight' : '')
   div.textContent = text
@@ -217,7 +230,11 @@ function addRawBlock(text, highlight) {
 }
 
 function addChatMsg(role, text) {
+  const MAX_MSGS = 500
   const container = document.getElementById('chatMessages')
+  while (container.childElementCount >= MAX_MSGS) {
+    container.firstElementChild?.remove()
+  }
   const div = document.createElement('div')
   div.className = 'msg ' + role
   div.textContent = text
@@ -378,6 +395,7 @@ async function sendMessage() {
 
     const rawText = await resp.text()
     addSSELine('raw', `HTTP ${resp.status} (${rawText.length}b)`)
+    addRawBlock(`=== 请求 #${reqIndex} — HTTP ${resp.status} (${rawText.length}b) ===\n${rawText}`, true)
 
     if (!resp.ok) {
       updateStatusBadge('请求失败', '#dc2626')
@@ -400,7 +418,7 @@ async function sendMessage() {
           updateStatusBadge('空响应', '#d97706')
         }
 
-        // 尝试从 rawText 解析 SSE（如果是原始 SSE 格式）
+        // SSE 数据流：用工具弹窗解析结构
         if (rawText.includes('data: ')) {
           parseAndLogSSE(rawText, reqIndex)
         }
@@ -409,7 +427,7 @@ async function sendMessage() {
         updateStatusBadge('解析错误', '#dc2626')
       }
     }
-  } catch (e) {
+  } catch (e) {中文
     updateStatusBadge('网络错误', '#dc2626')
     addSSELine('error', `fetch error: ${e.message}`)
     addChatMsg('error', e.message)
@@ -433,18 +451,48 @@ async function fetchSSELog() {
     const data = await resp.json()
     if (data && data.lines && data.lines.length > 0) {
       addSSELine('session', `[服务端日志] ${data.lines.length} 行`)
+      let currentUrl = ''
       for (const line of data.lines) {
-        if (line.includes('PARSE-F1')) addSSELine('f1', '🖥 ' + line)
+        // Extract URL from CHUNK: [CHUNK] [/api/...] data: ...
+        const urlMatch = line.match(/^\[CHUNK\]\s+\[([^\]]+)\]/)
+        if (urlMatch && urlMatch[1] !== currentUrl) {
+          currentUrl = urlMatch[1]
+          addSSELine('session', `📍 URL: ${currentUrl}`)
+        }
+        if (line.includes('SESSION')) addSSELine('session', '🖥 ' + line)
+        else if (line.includes('PARSE-F1')) addSSELine('f1', '🖥 ' + line)
         else if (line.includes('PARSE-F2')) addSSELine('f2', '🖥 ' + line)
         else if (line.includes('PARSE-F3')) addSSELine('f3', '🖥 ' + line)
         else if (line.includes('PARSE-F4')) addSSELine('f4', '🖥 ' + line)
         else if (line.includes('PARSE-UNKNOWN')) addSSELine('unknown', '🖥 ' + line)
         else if (line.includes('RESULT')) addSSELine('done', '🖥 ' + line)
-        else if (line.includes('CHUNK')) addSSELine('raw', '🖥 ' + line.slice(0, 120))
+        else if (line.includes('CHUNK')) addSSELine('raw', '🖥 ' + line.slice(0, 200))
         else addSSELine('raw', '🖥 ' + line.slice(0, 100))
       }
     }
   } catch { /* ignore */ }
+}
+
+// 加载原始日志到 raw tab
+let rawLogLoaded = false
+async function fetchRawLog() {
+  if (rawLogLoaded) return
+  rawLogLoaded = true
+  try {
+    const resp = await fetch('/debug/raw-log')
+    if (!resp.ok) return
+    const data = await resp.json()
+    if (data && data.lines && data.lines.length > 0) {
+      addRawBlock(`=== 原始数据日志: ${data.file} (${data.lines.length} 行) ===`, true)
+      for (const line of data.lines.slice(-500)) {
+        addRawBlock(line, false)
+      }
+    } else {
+      addRawBlock('暂无原始数据日志（请先发送请求）', true)
+    }
+  } catch {
+    addRawBlock('加载原始日志失败', true)
+  }
 }
 
 // 键盘快捷键

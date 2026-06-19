@@ -18,6 +18,7 @@ const translations = {
     api_health: 'Health check - returns {"status":"ok"}',
     api_models: 'List available models (OpenAI-compatible)',
     api_chat: 'Chat completion (OpenAI-compatible). Supports stream:true for SSE.',
+    api_messages: 'Messages API (Anthropic-compatible). Supports stream:true for SSE.',
     testing: 'Testing...',
     sending: 'Sending test request...',
     success: 'Success! Reply: ',
@@ -42,6 +43,7 @@ const translations = {
     api_health: '\u5065\u5eb7\u68c0\u67e5 - \u8fd4\u56de {"status":"ok"}',
     api_models: '\u5217\u51fa\u53ef\u7528\u6a21\u578b\uff08OpenAI \u517c\u5bb9\uff09',
     api_chat: '\u5bf9\u8bdd\u8865\u5168\uff08OpenAI \u517c\u5bb9\uff09\u3002\u652f\u6301 stream:true \u6d41\u5f0f\u54cd\u5e94\u3002',
+    api_messages: '\u6d88\u606f API\uff08Anthropic \u517c\u5bb9\uff09\u3002\u652f\u6301 stream:true \u6d41\u5f0f\u54cd\u5e94\u3002',
     testing: '\u6d4b\u8bd5\u4e2d...',
     sending: '\u6b63\u5728\u53d1\u9001\u6d4b\u8bd5\u8bf7\u6c42...',
     success: '\u6210\u529f\uff01\u56de\u590d\uff1a',
@@ -69,20 +71,21 @@ const LangController = {
     })
   },
 
-  /** Switch language and update UI */
+  /** Switch language, persist, and update UI */
   set(lang) {
     this.current = lang
+    localStorage.setItem('openwebai-lang', lang)
     document.getElementById('btnEn').className = lang === 'en' ? 'active' : ''
     document.getElementById('btnZh').className = lang === 'zh' ? 'active' : ''
     document.documentElement.lang = lang
     this.apply(lang)
   },
 
-  /** Auto-detect browser language */
+  /** Default to Chinese, but load saved preference if any */
   autoDetect() {
-    // Default to Chinese unless browser is explicitly non-Chinese
-    if (!navigator.language.startsWith('zh')) {
-      this.set('en')
+    const saved = localStorage.getItem('openwebai-lang')
+    if (saved === 'en' || saved === 'zh') {
+      this.set(saved)
     } else {
       this.set('zh')
     }

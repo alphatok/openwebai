@@ -16,12 +16,28 @@ export interface Message {
   content: string
 }
 
-/** Request received by Gateway */
+/** Request received by Gateway (OpenAI format) */
 export interface ChatRequest {
   model: string
   messages: Message[]
   stream?: boolean
   temperature?: number
+}
+
+/** Anthropic Messages API request */
+export interface AnthropicRequest {
+  model: string
+  messages: AnthropicMessage[]
+  stream?: boolean
+  max_tokens?: number
+  temperature?: number
+  system?: string
+}
+
+/** Anthropic message (content can be string or content blocks) */
+export interface AnthropicMessage {
+  role: 'user' | 'assistant'
+  content: string | Array<{ type: string; text?: string; source?: unknown }>
 }
 
 /** Task result returned by Scheduler */

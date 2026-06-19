@@ -58,10 +58,16 @@ API Key:   test123456</code></pre>
     <pre><code># Health check
 curl http://localhost:3000/health
 
-# Chat (non-streaming)
+# Chat (OpenAI format)
 curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"deepseek","messages":[{"role":"user","content":"Hello!"}]}'</code></pre>
+  -d '{"model":"deepseek","messages":[{"role":"user","content":"Hello!"}]}'
+
+# Chat (Anthropic format)
+curl -X POST http://localhost:3000/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: test123456" \
+  -d '{"model":"chat","messages":[{"role":"user","content":"Hello!"}],"max_tokens":1024}'</code></pre>
   </div>
 
   <!-- API Reference -->
@@ -78,6 +84,10 @@ curl -X POST http://localhost:3000/v1/chat/completions \
     <div class="api-card">
       <h4>POST /v1/chat/completions</h4>
       <p data-i18n="api_chat">Chat completion (OpenAI-compatible). Supports stream:true for SSE.</p>
+    </div>
+    <div class="api-card">
+      <h4>POST /v1/messages</h4>
+      <p data-i18n="api_messages">Messages API (Anthropic-compatible). Supports stream:true for SSE.</p>
     </div>
   </div>
 

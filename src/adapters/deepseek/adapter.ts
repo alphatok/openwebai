@@ -81,6 +81,7 @@ export class DeepSeekAdapter {
 
   private logSessionId = Date.now().toString()
   private logFile = path.join(process.cwd(), `sse-log-${Date.now()}.txt`)
+  private rawLogFile = path.join(process.cwd(), `raw-log-${Date.now()}.txt`)
 
   private writeLog(tag: string, data: string): void {
     try {
@@ -88,10 +89,26 @@ export class DeepSeekAdapter {
     } catch { /* ignore */ }
   }
 
+  /** Write raw intercepted data — no filtering */
+  private writeRawLog(entry: string): void {
+    try {
+      fs.appendFileSync(this.rawLogFile, entry)
+    } catch { /* ignore */ }
+  }
+
   /** Process intercepted SSE/fetch data from the extension via relay */
   private handleRelayData(msg: InterceptedData): void {
     const url = msg.url || ''
     console.log(`${TAG} onDataHandler: type=${msg.type}, url=${url.slice(0, 80)}, len=${(msg.data||'').length}`)
+
+    // === Write RAW log (before any filtering) ===
+    const ts = new Date().toISOString()
+    const dataStr = msg.data || ''
+    this.writeRawLog(
+      `[${ts}] ${msg.type} | ${url}\n` +
+      (dataStr ? dataStr + '\n' : '') +
+      (msg.type === 'fetch_done' ? '---\n' : '')
+    )
 
     // Ignore non-DeepSeek URLs (absolute non-deepseek)
     if (url.startsWith('http') && !url.includes('deepseek.com')) {
@@ -114,23 +131,19 @@ export class DeepSeekAdapter {
       if (!data) return
       console.log(`${TAG} Fetch chunk (${data.length}b): ${data.slice(0, 100)}`)
 
-      // Accept if looks like SSE chat data, or we already started collecting
-      if (this.looksLikeChatData(data) || this.rawChunks.length > 0) {
-        if (this.rawChunks.length === 0) {
-          console.log(`${TAG} ✅ Chat stream started! url=${url.slice(0, 80)}`)
-          this.chatStreamUrl = url
-          this.logFile = path.join(process.cwd(), `sse-log-${Date.now()}.txt`)
-          this.writeLog('SESSION', `Chat stream started: ${url}`)
-        }
-        this.writeLog('CHUNK', data)
-        this.rawChunks.push(data)
-        this.tryParseContent()
-      } else {
-        console.log(`${TAG} Skip: no SSE pattern in data`)
+      // Accept ALL POST response data (inject.js already removed frontend filtering)
+      if (this.rawChunks.length === 0) {
+        console.log(`${TAG} ✅ Chat stream started! url=${url.slice(0, 80)}`)
+        this.chatStreamUrl = url
+        this.logFile = path.join(process.cwd(), `sse-log-${Date.now()}.txt`)
+        this.writeLog('SESSION', `Chat stream started: ${url}`)
       }
+      this.writeLog('CHUNK', `[${url}] ${data.slice(0, 300)}`)
+      this.rawChunks.push(data)
+      this.tryParseContent()
     } else if (msg.type === 'fetch_done') {
-      const isChatDone = !this.chatStreamUrl || url === this.chatStreamUrl || this.rawChunks.length > 0
-      if (isChatDone && this.rawChunks.length > 0) {
+      // Only mark done when this URL matches the active chat stream
+      if (url === this.chatStreamUrl && this.rawChunks.length > 0) {
         this.done = true
         console.log(`${TAG} ✅ Chat stream DONE, chunks=${this.rawChunks.length}, content=${this.capturedContent.length}`)
         this.tryParseContent()
@@ -258,6 +271,7 @@ export class DeepSeekAdapter {
     let lastFullContent = ''
     let lineCount = 0
     let dataLineCount = 0
+    let unknownCount = 0
 
     for (const line of lines) {
       lineCount++
@@ -287,10 +301,19 @@ export class DeepSeekAdapter {
           continue
         }
 
+        // Format 2b: {"p": "...", "o": "SET", "v": "value"} — status updates, NOT content
+        if (chunk.o === 'SET' && typeof chunk.v === 'string') {
+          const p = String(chunk.p || '')
+          this.writeLog('PARSE-F2', `p="${p}" o=SET v="${chunk.v}" (skipped, status field)`)
+          continue
+        }
+
         // Format 3: {"o": "BATCH", "v": [...]}
         if (chunk.o === 'BATCH' && Array.isArray(chunk.v)) {
           this.writeLog('PARSE-F3', `BATCH ops=${chunk.v.length}`)
           for (const op of chunk.v) {
+            // Skip non-content patches (status, token_usage, etc.)
+            if (op.o === 'SET') continue
             if (op.o === 'APPEND' && typeof op.v === 'string') {
               const p = String(op.p || '')
               if (p.includes('content') || p.includes('fragment') || p === '') {
@@ -301,7 +324,7 @@ export class DeepSeekAdapter {
           continue
         }
 
-        // Format 4: full response object
+        // Format 4: full response object {"v": {response: {fragments: [...]}}}
         const fragments = chunk?.v?.response?.fragments as Array<{ type: string; content: string }> | undefined
         if (fragments) {
           for (const f of fragments) {
@@ -319,13 +342,21 @@ export class DeepSeekAdapter {
           continue
         }
 
+        // Format 5: {"updated_at": 12345} — session keepalive, skip
+        if (chunk.updated_at !== undefined && keys.length <= 2) {
+          this.writeLog('PARSE-SKIP', `keepalive updated_at=${chunk.updated_at}`)
+          continue
+        }
+
         // OpenAI-style fallback
         const delta = chunk?.choices?.[0]?.delta?.content
         if (delta) { accumulated += delta; continue }
         if (typeof chunk.content === 'string') { accumulated += chunk.content; continue }
 
-        // Unknown format — log for analysis
-        this.writeLog('PARSE-UNKNOWN', `keys=${keys} json=${jsonStr.slice(0, 200)}`)
+        // Unknown format — output placeholder so we can see missing data
+        unknownCount++
+        accumulated += `_______${unknownCount}_______`
+        this.writeLog('PARSE-UNKNOWN', `#${unknownCount} keys=${keys} json=${jsonStr.slice(0, 200)}`)
 
       } catch (e: unknown) {
         this.writeLog('PARSE-ERROR', `err=${e instanceof Error ? e.message : String(e)} line=${line.slice(0, 100)}`)
@@ -333,8 +364,8 @@ export class DeepSeekAdapter {
     }
 
     const result = lastFullContent.length > accumulated.length ? lastFullContent : accumulated
-    console.log(`${TAG} parseDeepSeekSSE: lines=${lineCount} dataLines=${dataLineCount} accumulated=${accumulated.length} full=${lastFullContent.length} → ${result.length} chars`)
-    this.writeLog('RESULT', `accumulated=${accumulated.length} full=${lastFullContent.length} result=${result.length} preview="${result.slice(0, 100)}"`)
+    console.log(`${TAG} parseDeepSeekSSE: lines=${lineCount} dataLines=${dataLineCount} accumulated=${accumulated.length} full=${lastFullContent.length} unknown=${unknownCount} → ${result.length} chars`)
+    this.writeLog('RESULT', `accumulated=${accumulated.length} full=${lastFullContent.length} result=${result.length} unknownBlocks=${unknownCount} preview="${result.slice(0, 100)}"`)
     if (result) console.log(`${TAG} Content preview: "${result.slice(0, 100)}"`)
     return result
   }
