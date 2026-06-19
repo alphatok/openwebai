@@ -1,18 +1,27 @@
-import type { Page, Route } from 'playwright'
+import type { Page } from 'playwright'
 import { BaseAdapter } from '../base-adapter.js'
 import type { SiteConfig } from '../../types/adapter.js'
 import { AdapterError } from '../../errors/adapter-error.js'
 import configJson from './config.json' with { type: 'json' }
 
-/** DeepSeek site adapter — intercepts SSE stream via Node.js fetch for full capture */
+/**
+ * DeepSeek site adapter — passive SSE interception via CDP.
+ * Uses Chrome DevTools Protocol to listen to network events without
+ * interfering with the page's own request/response flow.
+ */
 export class DeepSeekAdapter extends BaseAdapter {
   readonly siteId = 'deepseek'
   readonly config: SiteConfig = configJson as unknown as SiteConfig
 
-  /** Captured SSE content from network interception */
+  /** Captured SSE content from CDP network events */
   private capturedContent = ''
-  /** Whether route interception is active */
-  private routeActive = false
+  /** CDP session for network monitoring */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private cdpSession: any = null
+  /** Request ID of the SSE stream we're tracking */
+  private sseRequestId: string | null = null
+  /** Whether CDP network monitoring is active */
+  private monitorActive = false
 
   async init(page: Page): Promise<void> {
     await super.init(page)
@@ -28,7 +37,6 @@ export class DeepSeekAdapter extends BaseAdapter {
     await input.click()
     await this.sleep(200)
 
-    // Clear existing content
     await this.page.keyboard.press('Control+a')
     await this.sleep(50)
     await this.page.keyboard.press('Backspace')
@@ -37,17 +45,15 @@ export class DeepSeekAdapter extends BaseAdapter {
     await this.typeWithHumanDelay(prompt)
   }
 
-  /** Set up SSE interception and click submit */
+  /** Start CDP network monitoring, then click submit */
   async clickSubmit(): Promise<void> {
     if (!this.page) throw new AdapterError('PAGE_CLOSED', 'Page not initialized', false)
 
-    // Reset capture state
     this.capturedContent = ''
+    this.sseRequestId = null
 
-    // Set up route interception to capture the SSE stream
-    await this.setupRouteInterception()
+    await this.startCdpMonitoring()
 
-    // Click submit or press Enter
     if (this.config.selectors.submitButton === 'Enter') {
       await this.page.keyboard.press('Enter')
     } else {
@@ -57,76 +63,93 @@ export class DeepSeekAdapter extends BaseAdapter {
     }
   }
 
-  /** Setup Playwright route interception — captures SSE via external fetch */
-  private async setupRouteInterception(): Promise<void> {
-    if (!this.page || this.routeActive) return
-    this.routeActive = true
+  /** Start passive CDP network monitoring — zero interference with page requests */
+  private async startCdpMonitoring(): Promise<void> {
+    if (!this.page || this.monitorActive) return
+    this.monitorActive = true
 
-    await this.page.route('**/*', async (route: Route) => {
-      const url = route.request().url()
+    this.cdpSession = await this.page.context().newCDPSession(this.page)
 
-      // Only intercept DeepSeek chat API calls
-      if (this.isChatApiUrl(url)) {
-        const reqHeaders = route.request().headers()
-        const postData = route.request().postData()
+    // Track which request ID is the SSE stream
+    this.cdpSession.on('Network.responseReceived', (params: {
+      requestId: string
+      response: { url: string; headers: Record<string, string> }
+    }) => {
+      const url = params.response.url
+      const contentType = params.response.headers?.['content-type']?.toLowerCase() || ''
 
-        // Abort page's request — we'll proxy it ourselves to capture the full SSE
-        await route.abort()
+      if (url.includes('deepseek.com') && url.includes('/chat/completion') && contentType.includes('event-stream')) {
+        this.sseRequestId = params.requestId
+        console.log(`[DeepSeekAdapter] CDP: tracking SSE stream requestId=${params.requestId} url=${url.slice(0, 80)}`)
+      }
+    })
 
-        console.log(`[DeepSeekAdapter] Proxying SSE request: ${url.slice(0, 80)}...`)
+    // Collect SSE data chunks as they arrive
+    this.cdpSession.on('Network.dataReceived', (params: {
+      requestId: string
+      dataLength: number
+      encodedDataLength: number
+    }) => {
+      if (params.requestId === this.sseRequestId) {
+        // We can't get the raw bytes from this event alone.
+        // Instead, we'll periodically read the response body via CDP.
+      }
+    })
 
-        try {
-          // Build cookie header from browser context for auth
-          const cookies = await this.page!.context().cookies()
-          const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
+    // When the SSE stream ends (loadingFinished), read the full body
+    this.cdpSession.on('Network.loadingFinished', async (params: {
+      requestId: string
+      encodedDataLength: number
+    }) => {
+      if (params.requestId !== this.sseRequestId || !this.cdpSession) return
 
-          // Merge headers, add cookie
-          const headers: Record<string, string> = {
-            ...reqHeaders,
-            'Cookie': cookieStr,
-            'Accept': 'text/event-stream',
-          }
+      console.log(`[DeepSeekAdapter] CDP: SSE stream finished, reading body...`)
 
-          // Make our own fetch — Node.js fetch reads the full SSE body
-          const resp = await fetch(url, {
-            method: route.request().method(),
-            headers,
-            body: postData || undefined,
-          })
+      try {
+        // Use CDP Network.getResponseBody to get the full SSE text
+        const result = await this.cdpSession.send('Network.getResponseBody', {
+          requestId: this.sseRequestId,
+        })
 
-          // response.text() on Node.js fetch waits for the full SSE stream to end
-          const body = await resp.text()
-          this.parseSSEBody(body)
+        const body = 'body' in result ? result.body : ''
+        const base64Encoded = 'base64Encoded' in result ? result.base64Encoded : false
 
-          // Get response headers
-          const respHeaders: Record<string, string> = {}
-          resp.headers.forEach((value, key) => {
-            respHeaders[key] = value
-          })
-
-          // Fulfill the page's request with the captured response
-          await route.fulfill({
-            status: resp.status,
-            headers: respHeaders,
-            body,
-          })
-
-          console.log(`[DeepSeekAdapter] SSE captured: ${this.capturedContent.slice(0, 100)}...`)
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          console.error(`[DeepSeekAdapter] Proxy error: ${message}`)
-          await route.fulfill({ status: 500, body: '{}' })
+        let sseText = body
+        if (base64Encoded && typeof sseText === 'string') {
+          sseText = Buffer.from(sseText, 'base64').toString('utf-8')
         }
-      } else {
-        await route.continue()
+
+        this.parseSSEBody(sseText)
+        console.log(`[DeepSeekAdapter] CDP: captured ${this.capturedContent.length} chars`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error(`[DeepSeekAdapter] CDP getResponseBody error: ${message}`)
+      }
+    })
+
+    // Also handle loadingFailed as an edge case
+    this.cdpSession.on('Network.loadingFailed', (params: {
+      requestId: string
+      errorText: string
+    }) => {
+      if (params.requestId === this.sseRequestId) {
+        console.warn(`[DeepSeekAdapter] CDP: SSE stream failed: ${params.errorText}`)
       }
     })
   }
 
-  /** Check if URL is a DeepSeek chat API endpoint */
-  private isChatApiUrl(url: string): boolean {
-    return url.includes('deepseek.com') &&
-      (url.includes('/chat') || url.includes('/completion') || url.includes('/stream') || url.includes('/v1/') || url.includes('/api/'))
+  /** Stop CDP monitoring */
+  private async stopCdpMonitoring(): Promise<void> {
+    if (!this.monitorActive) return
+    this.monitorActive = false
+
+    try {
+      await this.cdpSession?.detach()
+    } catch {
+      // Ignore
+    }
+    this.cdpSession = null
+    this.sseRequestId = null
   }
 
   /** Parse SSE (text/event-stream) body into capturedContent */
@@ -134,32 +157,29 @@ export class DeepSeekAdapter extends BaseAdapter {
     console.log(`[DeepSeekAdapter] Raw SSE body (${body.length} chars):\n${body.slice(0, 500)}\n---`)
     const lines = body.split('\n')
     for (const line of lines) {
-      // SSE format: "data: {...json...}"
       if (line.startsWith('data: ')) {
         const jsonStr = line.slice(6).trim()
         if (jsonStr === '[DONE]') continue
 
         try {
           const chunk = JSON.parse(jsonStr)
-          // DeepSeek chunks typically have: chunk.choices[0].delta.content
           const delta = chunk?.choices?.[0]?.delta?.content
           if (delta) {
             this.capturedContent += delta
             console.log(`[DeepSeekAdapter] delta: "${delta.slice(0, 60)}" (total: ${this.capturedContent.length})`)
           }
-          // Some APIs use different format: chunk.content or chunk.message.content
           const altContent = chunk?.content || chunk?.message?.content
           if (altContent && !delta) {
             this.capturedContent += altContent
           }
         } catch {
-          // Ignore non-JSON data lines
+          // Ignore non-JSON
         }
       }
     }
   }
 
-  /** Wait for AI generation to complete (SSE stream finished) */
+  /** Wait for generation to complete */
   async waitForCompletion(): Promise<void> {
     if (!this.page) throw new AdapterError('PAGE_CLOSED', 'Page not initialized', false)
 
@@ -167,10 +187,8 @@ export class DeepSeekAdapter extends BaseAdapter {
     const interval = this.config.behavior.pollIntervalMs
     const startTime = Date.now()
 
-    // Wait for content to start arriving, then stabilize
     while (Date.now() - startTime < timeout) {
       if (this.capturedContent.length > 0) {
-        // Content is arriving — wait for it to stop growing
         let lastLen = this.capturedContent.length
         let stableCount = 0
 
@@ -186,8 +204,7 @@ export class DeepSeekAdapter extends BaseAdapter {
         }
 
         if (stableCount >= 3) {
-          // Clean up route interception
-          await this.removeRouteInterception()
+          await this.stopCdpMonitoring()
           return
         }
       }
@@ -195,38 +212,23 @@ export class DeepSeekAdapter extends BaseAdapter {
       await this.sleep(interval)
     }
 
-    // Timeout — clean up and return whatever we have
-    console.warn('[DeepSeekAdapter] waitForCompletion timed out, returning partial content')
-    await this.removeRouteInterception()
+    console.warn('[DeepSeekAdapter] waitForCompletion timed out')
+    await this.stopCdpMonitoring()
   }
 
-  /** Remove route interception to avoid interfering with subsequent requests */
-  private async removeRouteInterception(): Promise<void> {
-    if (!this.page || !this.routeActive) return
-    try {
-      await this.page.unrouteAll({ behavior: 'ignoreErrors' })
-    } catch {
-      // Ignore errors when removing routes
-    }
-    this.routeActive = false
-  }
-
-  /** Return captured SSE content */
+  /** Return captured content */
   async extractOutput(_prompt?: string): Promise<string> {
     return this.capturedContent.trim()
   }
 
-  /** Check if AI is currently generating */
   isGenerating(): boolean {
-    return this.routeActive && this.capturedContent.length > 0
+    return this.monitorActive && this.capturedContent.length > 0
   }
 
-  /** Check if captcha appeared */
   hasCaptcha(): boolean {
     return false
   }
 
-  /** Wait for selector to appear (with timeout) */
   private async waitForSelector(selector: string, timeout = 5000) {
     if (!this.page) return null
     try {
