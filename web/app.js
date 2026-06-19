@@ -106,7 +106,7 @@ const ConnectionTest = {
     try {
       const resp = await fetch('/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer test123456' },
         body: JSON.stringify({
           model: 'deepseek',
           messages: [{ role: 'user', content: 'Say hi in one word.' }],

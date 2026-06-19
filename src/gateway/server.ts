@@ -1,4 +1,5 @@
 import Fastify from 'fastify'
+import type { FastifyRequest } from 'fastify'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import type { ChatRequest } from '../types/task.js'
@@ -9,6 +10,16 @@ import { DeepSeekAdapter } from '../adapters/deepseek/adapter.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const WEB_ROOT = path.resolve(__dirname, '../../web')
+
+const API_KEY = 'test123456'
+
+/** Verify Authorization header */
+function verifyApiKey(request: FastifyRequest): boolean {
+  const auth = request.headers.authorization
+  if (!auth) return false
+  const [scheme, token] = auth.split(' ')
+  return scheme?.toLowerCase() === 'bearer' && token === API_KEY
+}
 
 /** Create API Gateway service */
 export async function createGateway(queue: TaskQueue) {
@@ -37,6 +48,12 @@ export async function createGateway(queue: TaskQueue) {
   // OpenAI-compatible endpoint: /v1/chat/completions
   app.post('/v1/chat/completions', async (request, reply): Promise<void> => {
     const body = request.body as ChatRequest
+
+    // API key verification
+    if (!verifyApiKey(request)) {
+      reply.code(401).send({ error: { message: 'Invalid API key', type: 'invalid_request_error' } })
+      return
+    }
 
     // Parameter validation
     if (!body.model) {
@@ -121,12 +138,19 @@ export async function createGateway(queue: TaskQueue) {
   })
 
   // List available models
-  app.get('/v1/models', async () => ({
-    object: 'list',
-    data: [
-      { id: 'deepseek', object: 'model', owned_by: 'openwebai' },
-    ],
-  }))
+  app.get('/v1/models', async (request, reply) => {
+    if (!verifyApiKey(request)) {
+      reply.code(401).send({ error: { message: 'Invalid API key', type: 'invalid_request_error' } })
+      return
+    }
+
+    return {
+      object: 'list',
+      data: [
+        { id: 'deepseek', object: 'model', owned_by: 'openwebai' },
+      ],
+    }
+  })
 
   return app
 }
