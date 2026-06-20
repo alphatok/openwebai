@@ -173,7 +173,7 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
 
     try {
       if (body.stream) {
-        // Stream response - SSE
+        // Stream response - SSE (true incremental streaming)
         const created = Math.floor(Date.now() / 1000)
         reply.raw.writeHead(200, {
           'Content-Type': 'text/event-stream',
@@ -183,12 +183,29 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
 
         reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`)
 
+        // Register streaming callback — writes SSE delta chunks in real-time
+        let sentLen = 0
+        adapter.setStreamCallback((fullContent: string) => {
+          if (fullContent.length > sentLen) {
+            const delta = fullContent.slice(sentLen)
+            sentLen = fullContent.length
+            reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: { content: delta }, finish_reason: null }] })}\n\n`)
+          }
+        })
+
         const result = await executeTask(adapter, prompt)
 
-        if (result.content) {
-          console.log(`[Gateway] Stream SSE: sending ${result.content.length} chars for task ${taskId}`)
-          reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: { content: result.content }, finish_reason: null }] })}\n\n`)
-        } else {
+        // Cleanup callback
+        adapter.setStreamCallback(null)
+
+        // Flush any remaining content that wasn't streamed yet
+        if (result.content && result.content.length > sentLen) {
+          const remaining = result.content.slice(sentLen)
+          console.log(`[Gateway] Stream flush: ${remaining.length} remaining chars`)
+          reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: { content: remaining }, finish_reason: null }] })}\n\n`)
+        }
+
+        if (!result.content && result.error) {
           console.warn(`[Gateway] Stream SSE: NO content for task ${taskId}, error=${JSON.stringify(result.error)}`)
         }
 

@@ -172,6 +172,14 @@ export class DeepSeekAdapter {
   /** Snapshot of content after completion — protects against concurrent relay data overwriting */
   private completedContent = ''
 
+  /** Streaming callback — called with full content whenever it changes */
+  private streamCallback: ((fullContent: string) => void) | null = null
+
+  /** Register a callback that fires whenever new content is parsed (for real-time streaming) */
+  setStreamCallback(cb: ((fullContent: string) => void) | null): void {
+    this.streamCallback = cb
+  }
+
   /** Re-parse accumulated chunks whenever new data arrives (incremental) */
   private tryParseContent(): void {
     // Only parse newly arrived rawChunks, append their text to this.incremental
@@ -181,6 +189,10 @@ export class DeepSeekAdapter {
       this.parseNewChunks(newChunks)
     }
     this.capturedContent = this.baseline + this.incremental
+    // Notify streaming callback if content changed
+    if (this.streamCallback && this.capturedContent.length > 0) {
+      this.streamCallback(this.capturedContent)
+    }
   }
 
   /** Send a command to the browser and wait for response */
@@ -231,6 +243,7 @@ export class DeepSeekAdapter {
     this.baseline = ''
     this.incremental = ''
     this.completedContent = ''
+    // Note: streamCallback is NOT reset here — it's managed by the gateway
 
     console.log(`${TAG} Submitting (Enter key)...`)
 
