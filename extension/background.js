@@ -184,15 +184,44 @@ async function ensureContentScript(tabId, tabUrl) {
   }
 }
 
+async function openDeepSeekTab() {
+  console.log(TAG, 'openDeepSeekTab: creating new tab https://chat.deepseek.com')
+  const tab = await chrome.tabs.create({ url: 'https://chat.deepseek.com', active: true })
+  console.log(TAG, 'openDeepSeekTab: tab created, id=' + tab.id + ', waiting for load...')
+  // Wait for the tab to finish loading
+  await new Promise((resolve) => {
+    const listener = (tabId, changeInfo) => {
+      if (tabId === tab.id && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener)
+        resolve()
+      }
+    }
+    chrome.tabs.onUpdated.addListener(listener)
+    // Timeout fallback: proceed after 10s even if not fully loaded
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener)
+      resolve()
+    }, 10000)
+  })
+  console.log(TAG, 'openDeepSeekTab: tab loaded, id=' + tab.id)
+  // Re-query to get the final tab object (URL may have changed after redirects)
+  const freshTab = await chrome.tabs.get(tab.id)
+  return freshTab
+}
+
 async function handleCommandFromRelay(data) {
   console.log(TAG, '>>> handleCommandFromRelay: cmd=' + data.cmd + ' reqId=' + data.requestId?.slice(0, 8))
 
   try {
-    const tab = await findDeepSeekTab()
+    let tab = await findDeepSeekTab()
     if (!tab) {
-      console.error(TAG, 'handleCommandFromRelay: no DeepSeek tab, aborting')
-      sendToRelay({ type: 'command_response', requestId: data.requestId, ok: false, error: 'No DeepSeek tab found. Please open https://chat.deepseek.com' })
-      return
+      console.log(TAG, 'handleCommandFromRelay: no DeepSeek tab, auto-opening...')
+      tab = await openDeepSeekTab()
+      if (!tab) {
+        console.error(TAG, 'handleCommandFromRelay: failed to open DeepSeek tab')
+        sendToRelay({ type: 'command_response', requestId: data.requestId, ok: false, error: 'Failed to open https://chat.deepseek.com' })
+        return
+      }
     }
 
     console.log(TAG, 'handleCommandFromRelay: ensuring content script on tab', tab.id)
