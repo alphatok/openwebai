@@ -38,6 +38,29 @@
     <div id="testResult" class="test-result"></div>
   </div>
 
+  <!-- Step 2.5 -->
+  <div class="step">
+    <span class="step-num">2.5</span>
+    <h3 data-i18n="step25_title">会话管理</h3>
+    <p data-i18n="step25_desc">管理 DeepSeek 的历史会话：查看、删除、生成摘要、新建会话。</p>
+    <a class="btn" href="/debug" target="_blank" data-i18n="step25_debug">前往调试面板 → 会话管理</a>
+    <pre><code># 列出最近 5 个会话
+curl http://localhost:3000/v1/sessions?limit=5 \
+  -H "Authorization: Bearer test123456"
+
+# 新建会话
+curl -X POST http://localhost:3000/v1/sessions \
+  -H "Authorization: Bearer test123456"
+
+# 删除会话
+curl -X DELETE http://localhost:3000/v1/sessions/{session_id} \
+  -H "Authorization: Bearer test123456"
+
+# 生成会话摘要
+curl -X POST http://localhost:3000/v1/sessions/{session_id}/summarize \
+  -H "Authorization: Bearer test123456"</code></pre>
+  </div>
+
   <!-- Step 3 -->
   <div class="step">
     <span class="step-num">3</span>
@@ -88,6 +111,22 @@ curl -X POST http://localhost:3000/v1/messages \
     <div class="api-card">
       <h4>POST /v1/messages</h4>
       <p data-i18n="api_messages">Messages API (Anthropic-compatible). Supports stream:true for SSE.</p>
+    </div>
+    <div class="api-card">
+      <h4>GET /v1/sessions?limit=N</h4>
+      <p data-i18n="api_sessions_list">List recent DeepSeek chat sessions (default 10)</p>
+    </div>
+    <div class="api-card">
+      <h4>POST /v1/sessions</h4>
+      <p data-i18n="api_sessions_new">Create a new chat session</p>
+    </div>
+    <div class="api-card">
+      <h4>DELETE /v1/sessions/:id</h4>
+      <p data-i18n="api_sessions_delete">Delete a chat session by ID</p>
+    </div>
+    <div class="api-card">
+      <h4>POST /v1/sessions/:id/summarize</h4>
+      <p data-i18n="api_sessions_summarize">Generate a summary of a chat session</p>
     </div>
   </div>
 

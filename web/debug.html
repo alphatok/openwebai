@@ -88,6 +88,30 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 #statsLog { color:#888; font-size:13px; margin-top:8px; }
 
+/* 会话管理 */
+.sessions-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+.sessions-toolbar button { padding:6px 12px; border:none; border-radius:4px; cursor:pointer; font-size:13px; }
+.btn-primary { background:#6366f1; color:#fff; }
+.btn-primary:hover { background:#5558e0; }
+.btn-danger { background:#dc2626; color:#fff; }
+.btn-danger:hover { background:#b91c1c; }
+.btn-secondary { background:#374151; color:#ccc; }
+.btn-secondary:hover { background:#4b5563; }
+.btn-small { padding:3px 8px; font-size:12px; border:none; border-radius:3px; cursor:pointer; }
+.sessions-table { width:100%; border-collapse:collapse; font-size:13px; }
+.sessions-table th { text-align:left; padding:6px 8px; border-bottom:1px solid #2a2a3a; color:#888; font-weight:500; }
+.sessions-table td { padding:6px 8px; border-bottom:1px solid #1a1a2a; color:#bbb; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sessions-table tr:hover td { background:#1a1a2a; }
+.sessions-actions { display:flex; gap:4px; }
+.session-modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:100; align-items:center; justify-content:center; }
+.session-modal.active { display:flex; }
+.session-modal-content { background:#1a1a24; border:1px solid #2a2a3a; border-radius:8px; padding:20px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto; }
+.session-modal-content h3 { color:#a78bfa; margin-bottom:12px; font-size:15px; }
+.session-modal-content pre { background:#0a0a0f; border:1px solid #2a2a3a; border-radius:4px; padding:12px; white-space:pre-wrap; word-break:break-word; color:#ccc; font-size:13px; line-height:1.6; max-height:50vh; overflow-y:auto; }
+.session-modal-actions { display:flex; gap:8px; margin-top:14px; }
+.sessions-empty { color:#555; text-align:center; padding:40px; font-size:14px; }
+.sessions-loading { color:#888; text-align:center; padding:20px; }
+
 /* 自动滚动 */
 .autoscroll-toggle { font-size:12px; color:#777; cursor:pointer; user-select:none; }
 .autoscroll-toggle.on { color:#4ade80; }
@@ -130,6 +154,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
       <div class="tab active" onclick="switchTab('sse')">SSE 数据流</div>
       <div class="tab" onclick="switchTab('stats')">统计</div>
       <div class="tab" onclick="switchTab('raw')">原始数据</div>
+      <div class="tab" onclick="switchTab('sessions')">会话管理</div>
     </div>
 
     <!-- SSE 日志 -->
@@ -184,6 +209,33 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="tab-content" id="tab-raw">
       <div id="rawLog"></div>
     </div>
+
+    <!-- 会话管理 -->
+    <div class="tab-content" id="tab-sessions">
+      <div class="sessions-toolbar">
+        <button class="btn-primary" onclick="loadSessions()">刷新</button>
+        <button class="btn-primary" onclick="createNewSession()">新建会话</button>
+        <select id="sessionLimit" onchange="loadSessions()" style="padding:5px 8px; background:#1a1a2e; border:1px solid #2a2a3a; border-radius:4px; color:#ccc; font-size:13px;">
+          <option value="5">5条</option>
+          <option value="10" selected>10条</option>
+          <option value="20">20条</option>
+          <option value="50">50条</option>
+        </select>
+      </div>
+      <div id="sessionsList"><div class="sessions-empty">点击"刷新"加载会话列表</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 摘要弹窗 -->
+<div class="session-modal" id="summaryModal">
+  <div class="session-modal-content">
+    <h3 id="summaryTitle">会话摘要</h3>
+    <pre id="summaryContent">加载中...</pre>
+    <div class="session-modal-actions">
+      <button class="btn-primary" onclick="copySummary()">复制</button>
+      <button class="btn-secondary" onclick="closeSummaryModal()">关闭</button>
+    </div>
   </div>
 </div>
 
@@ -204,13 +256,15 @@ function toggleAutoScroll() {
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t, i) => {
-    const names = ['sse', 'stats', 'raw']
+    const names = ['sse', 'stats', 'raw', 'sessions']
     t.className = 'tab' + (names[i] === name ? ' active' : '')
   })
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
   document.getElementById('tab-' + name).classList.add('active')
   // Auto-load raw log when switching to raw tab
   if (name === 'raw') fetchRawLog()
+  // Auto-load sessions when switching to sessions tab
+  if (name === 'sessions') loadSessions()
 }
 
 function scrollToBottom(id) {
@@ -628,6 +682,131 @@ addSSELine('unknown', '  [???] 未知格式（需要新增支持）')
 
 // 尝试拉取已有 SSE 日志
 fetchSSELog()
+
+// === 会话管理 ===
+let sessionsCache = []
+
+async function loadSessions() {
+  const list = document.getElementById('sessionsList')
+  const limit = document.getElementById('sessionLimit').value
+  list.innerHTML = '<div class="sessions-loading">加载中...</div>'
+
+  try {
+    const resp = await fetch('/v1/sessions?limit=' + limit, {
+      headers: { 'Authorization': 'Bearer ' + API_KEY }
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + await resp.text())
+    const json = await resp.json()
+    const sessions = json.sessions || json.data || json
+
+    // DeepSeek returns biz_data array
+    const items = sessions?.biz_data || sessions?.data?.biz_data || (Array.isArray(sessions) ? sessions : [])
+    sessionsCache = items
+
+    if (!items.length) {
+      list.innerHTML = '<div class="sessions-empty">暂无会话记录</div>'
+      return
+    }
+
+    let html = '<table class="sessions-table"><thead><tr><th>标题</th><th>ID</th><th>更新时间</th><th>操作</th></tr></thead><tbody>'
+    for (const s of items) {
+      const id = s.id || s.chat_session_id || ''
+      const title = s.title || s.session_title || '(无标题)'
+      const updatedAt = s.updated_at || s.update_time || ''
+      const timeStr = updatedAt ? new Date(typeof updatedAt === 'number' ? updatedAt * 1000 : updatedAt).toLocaleString() : ''
+      html += `<tr>
+        <td title="${title}">${escapeHtml(title)}</td>
+        <td style="font-family:monospace; font-size:11px; color:#666">${id.slice(0, 12)}...</td>
+        <td style="font-size:12px; color:#666">${timeStr}</td>
+        <td class="sessions-actions">
+          <button class="btn-small btn-secondary" onclick="summarizeSession('${id}', '${escapeHtml(title)}')">摘要</button>
+          <button class="btn-small btn-danger" onclick="deleteSession('${id}', '${escapeHtml(title)}')">删除</button>
+        </td>
+      </tr>`
+    }
+    html += '</tbody></table>'
+    list.innerHTML = html
+  } catch (e) {
+    list.innerHTML = '<div class="sessions-empty" style="color:#f87171">加载失败: ' + escapeHtml(e.message) + '</div>'
+  }
+}
+
+async function deleteSession(id, title) {
+  if (!confirm(`确认删除会话「${title}」？\n\n此操作不可撤销。`)) return
+  try {
+    const resp = await fetch('/v1/sessions/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + API_KEY }
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status)
+    addSSELine('session', `[会话管理] 已删除: ${title} (${id.slice(0,8)}...)`)
+    loadSessions() // Refresh list
+  } catch (e) {
+    alert('删除失败: ' + e.message)
+  }
+}
+
+async function summarizeSession(id, title) {
+  document.getElementById('summaryTitle').textContent = '摘要: ' + title
+  document.getElementById('summaryContent').textContent = '正在生成摘要，请稍候（可能需要 10-30 秒）...'
+  document.getElementById('summaryModal').classList.add('active')
+
+  try {
+    const resp = await fetch('/v1/sessions/' + id + '/summarize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + API_KEY,
+      }
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + await resp.text())
+    const json = await resp.json()
+    document.getElementById('summaryContent').textContent = json.summary || '(无摘要内容)'
+    addSSELine('session', `[会话管理] 摘要完成: ${title} (${json.messageCount} 条消息)`)
+  } catch (e) {
+    document.getElementById('summaryContent').textContent = '摘要生成失败: ' + e.message
+  }
+}
+
+function closeSummaryModal() {
+  document.getElementById('summaryModal').classList.remove('active')
+}
+
+function copySummary() {
+  const text = document.getElementById('summaryContent').textContent
+  navigator.clipboard.writeText(text).then(() => {
+    addSSELine('session', '[会话管理] 摘要已复制到剪贴板')
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea')
+    ta.value = text
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+    addSSELine('session', '[会话管理] 摘要已复制到剪贴板')
+  })
+}
+
+async function createNewSession() {
+  try {
+    const resp = await fetch('/v1/sessions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + API_KEY }
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status)
+    const json = await resp.json()
+    addSSELine('session', '[会话管理] 新会话已创建')
+    alert('新会话已创建！DeepSeek 页面将跳转到新会话。')
+    loadSessions()
+  } catch (e) {
+    alert('创建失败: ' + e.message)
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
 </script>
 </body>
 </html>

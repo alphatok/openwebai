@@ -45,6 +45,29 @@ function verifyAnthropicApi(request: FastifyRequest): { valid: boolean; error?: 
   return { valid: true }
 }
 
+/** Extract message text from DeepSeek session messages response */
+function extractMessagesText(data: Record<string, unknown>): { role: string; content: string }[] {
+  const messages: { role: string; content: string }[] = []
+
+  // DeepSeek format: data.data.biz_data.messages or data.data.messages
+  const bizData = (data?.data as Record<string, unknown>)?.biz_data as Record<string, unknown>
+    || (data?.data as Record<string, unknown>)
+    || data
+  const msgList = (bizData?.messages || bizData?.list || []) as Record<string, unknown>[]
+
+  if (!Array.isArray(msgList)) return messages
+
+  for (const msg of msgList) {
+    const role = (msg.role as string) || (msg.type as string) || 'unknown'
+    const content = (msg.content as string) || (msg.text as string) || (msg.message as string) || ''
+    if (content) {
+      messages.push({ role, content })
+    }
+  }
+
+  return messages
+}
+
 /** Execute a chat task via the adapter */
 async function executeTask(adapter: DeepSeekAdapter, prompt: string): Promise<{ content?: string; error?: { code: string; message: string; recoverable: boolean } }> {
   const taskId = uuidv4()
@@ -406,6 +429,92 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
         { id: 'deepseek', object: 'model', owned_by: 'openwebai' },
         { id: 'chat', object: 'model', owned_by: 'openwebai' },
       ],
+    }
+  })
+
+  // === Session management APIs ===
+
+  // List sessions
+  app.get('/v1/sessions', async (request, reply) => {
+    if (!verifyApiKey(request)) {
+      reply.code(401).send({ error: { message: 'Invalid API key', type: 'invalid_request_error' } })
+      return
+    }
+    const limit = Number((request.query as Record<string, string>).limit) || 10
+    try {
+      await adapter.ensureDashboard()
+      const data = await adapter.listSessions(limit)
+      return { sessions: data }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return reply.code(500).send({ error: { message, type: 'session_error' } })
+    }
+  })
+
+  // Create new session
+  app.post('/v1/sessions', async (request, reply) => {
+    if (!verifyApiKey(request)) {
+      reply.code(401).send({ error: { message: 'Invalid API key', type: 'invalid_request_error' } })
+      return
+    }
+    try {
+      await adapter.ensureDashboard()
+      const data = await adapter.newSession()
+      return { session: data }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return reply.code(500).send({ error: { message, type: 'session_error' } })
+    }
+  })
+
+  // Delete session
+  app.delete('/v1/sessions/:id', async (request, reply) => {
+    if (!verifyApiKey(request)) {
+      reply.code(401).send({ error: { message: 'Invalid API key', type: 'invalid_request_error' } })
+      return
+    }
+    const { id } = request.params as { id: string }
+    try {
+      await adapter.ensureDashboard()
+      await adapter.deleteSession(id)
+      return { ok: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return reply.code(500).send({ error: { message, type: 'session_error' } })
+    }
+  })
+
+  // Summarize session (compress)
+  app.post('/v1/sessions/:id/summarize', async (request, reply) => {
+    if (!verifyApiKey(request)) {
+      reply.code(401).send({ error: { message: 'Invalid API key', type: 'invalid_request_error' } })
+      return
+    }
+    const { id } = request.params as { id: string }
+    try {
+      await adapter.ensureDashboard()
+      // 1. Get session messages
+      const messagesData = await adapter.getSessionMessages(id) as Record<string, unknown>
+      const messages = extractMessagesText(messagesData)
+
+      if (!messages.length) {
+        reply.code(404).send({ error: { message: 'No messages found in session', type: 'session_error' } })
+        return
+      }
+
+      // 2. Build summarization prompt
+      const conversation = messages.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join('\n\n')
+      const prompt = `Please summarize the following conversation concisely in about 200 words. Preserve key information and context.\n\n${conversation}`
+
+      // 3. Generate summary via DeepSeek
+      const result = await executeTask(adapter, prompt)
+      if (result.content) {
+        return { summary: result.content, messageCount: messages.length }
+      }
+      return reply.code(500).send({ error: { message: result.error?.message || 'Summarization failed', type: 'session_error' } })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return reply.code(500).send({ error: { message, type: 'session_error' } })
     }
   })
 

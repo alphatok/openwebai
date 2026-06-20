@@ -16,6 +16,7 @@ export interface CommandResponse {
   requestId: string
   ok: boolean
   error?: string
+  data?: unknown
   url?: string
   title?: string
 }

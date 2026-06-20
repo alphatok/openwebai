@@ -36,10 +36,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!e.data || e.data.source !== 'openwebai-inject') return
       if (e.data.requestId !== message.requestId) return
 
-      console.log(TAG, '✅ Got response from inject.js: ok=' + e.data.ok + (e.data.error ? ' error=' + e.data.error : ''))
+      console.log(TAG, '✅ Got response from inject.js: ok=' + e.data.ok + (e.data.error ? ' error=' + e.data.error : '') + (e.data.data ? ' hasData=yes' : ''))
       responded = true
       window.removeEventListener('message', handler)
-      sendResponse({ ok: e.data.ok, error: e.data.error })
+      sendResponse({ ok: e.data.ok, error: e.data.error, data: e.data.data })
     }
     window.addEventListener('message', handler)
 

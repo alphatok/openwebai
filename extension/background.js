@@ -209,8 +209,48 @@ async function openDeepSeekTab() {
   return freshTab
 }
 
+// Find an existing localhost:3000 tab
+async function findDashboardTab() {
+  const tabs = await chrome.tabs.query({ url: 'http://localhost:3000/*' })
+  if (tabs.length > 0) {
+    console.log(TAG, 'findDashboardTab: found tab id=' + tabs[0].id + ' url=' + tabs[0].url)
+    return tabs[0]
+  }
+  return null
+}
+
+// Open or focus the localhost:3000 dashboard
+async function openDashboardTab() {
+  let tab = await findDashboardTab()
+  if (tab) {
+    // Focus existing tab
+    console.log(TAG, 'openDashboardTab: focusing existing tab id=' + tab.id)
+    await chrome.tabs.update(tab.id, { active: true })
+    // Also focus the window
+    if (tab.windowId) {
+      await chrome.windows.update(tab.windowId, { focused: true })
+    }
+    return tab
+  }
+  // Create new tab
+  console.log(TAG, 'openDashboardTab: creating new tab http://localhost:3000/')
+  tab = await chrome.tabs.create({ url: 'http://localhost:3000/', active: true })
+  return tab
+}
+
 async function handleCommandFromRelay(data) {
   console.log(TAG, '>>> handleCommandFromRelay: cmd=' + data.cmd + ' reqId=' + data.requestId?.slice(0, 8))
+
+  // Special commands handled directly by background.js (no content script needed)
+  if (data.cmd === 'open_dashboard') {
+    try {
+      const tab = await openDashboardTab()
+      sendToRelay({ type: 'command_response', requestId: data.requestId, ok: true, data: { tabId: tab.id, url: tab.url } })
+    } catch (err) {
+      sendToRelay({ type: 'command_response', requestId: data.requestId, ok: false, error: err.message })
+    }
+    return
+  }
 
   try {
     let tab = await findDeepSeekTab()
@@ -246,6 +286,7 @@ async function handleCommandFromRelay(data) {
       requestId: data.requestId,
       ok: response?.ok ?? false,
       error: response?.error,
+      data: response?.data,
     })
     console.log(TAG, 'handleCommandFromRelay: response forwarded to relay, ok=' + (response?.ok ?? false))
   } catch (err) {

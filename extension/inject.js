@@ -38,6 +38,18 @@ window.addEventListener('message', (e) => {
         url: window.location.href,
         title: document.title,
       })
+    } else if (cmd === 'list_sessions') {
+      handleListSessions(data, requestId)
+      return // async
+    } else if (cmd === 'delete_session') {
+      handleDeleteSession(data, requestId)
+      return // async
+    } else if (cmd === 'new_session') {
+      handleNewSession(data, requestId)
+      return // async
+    } else if (cmd === 'get_session_messages') {
+      handleGetSessionMessages(data, requestId)
+      return // async
     } else {
       sendResponse(requestId, { ok: false, error: 'Unknown command: ' + cmd })
     }
@@ -199,6 +211,95 @@ function waitForSendButton(timeoutMs) {
 
     check()
   })
+}
+
+// === Session management commands ===
+
+async function handleListSessions(data, requestId) {
+  const limit = data?.limit || 10
+  console.log(TAG, 'listSessions: limit=' + limit)
+  try {
+    const resp = await fetch('/api/v0/chat/list_sessions?limit=' + limit, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' },
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status)
+    const json = await resp.json()
+    console.log(TAG, 'listSessions: got', json?.data?.biz_data?.length || 0, 'sessions')
+    sendResponse(requestId, { ok: true, data: json })
+  } catch (e) {
+    console.error(TAG, 'listSessions error:', e.message)
+    sendResponse(requestId, { ok: false, error: e.message })
+  }
+}
+
+async function handleDeleteSession(data, requestId) {
+  const sessionId = data?.sessionId
+  if (!sessionId) {
+    sendResponse(requestId, { ok: false, error: 'sessionId is required' })
+    return
+  }
+  console.log(TAG, 'deleteSession: id=' + sessionId)
+  try {
+    const resp = await fetch('/api/v0/chat/delete_session', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_session_id: sessionId }),
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status)
+    const json = await resp.json()
+    console.log(TAG, 'deleteSession: done')
+    sendResponse(requestId, { ok: true, data: json })
+  } catch (e) {
+    console.error(TAG, 'deleteSession error:', e.message)
+    sendResponse(requestId, { ok: false, error: e.message })
+  }
+}
+
+async function handleNewSession(data, requestId) {
+  console.log(TAG, 'newSession: creating...')
+  try {
+    const resp = await fetch('/api/v0/chat/create_session', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status)
+    const json = await resp.json()
+    const newId = json?.data?.biz_data?.id
+    console.log(TAG, 'newSession: created id=' + newId)
+    // Navigate to new session
+    if (newId) {
+      window.location.href = '/chat/' + newId
+    }
+    sendResponse(requestId, { ok: true, data: json })
+  } catch (e) {
+    console.error(TAG, 'newSession error:', e.message)
+    sendResponse(requestId, { ok: false, error: e.message })
+  }
+}
+
+async function handleGetSessionMessages(data, requestId) {
+  const sessionId = data?.sessionId
+  if (!sessionId) {
+    sendResponse(requestId, { ok: false, error: 'sessionId is required' })
+    return
+  }
+  console.log(TAG, 'getSessionMessages: id=' + sessionId)
+  try {
+    const resp = await fetch('/api/v0/chat/get_messages?chat_session_id=' + sessionId, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' },
+    })
+    if (!resp.ok) throw new Error('HTTP ' + resp.status)
+    const json = await resp.json()
+    console.log(TAG, 'getSessionMessages: got messages')
+    sendResponse(requestId, { ok: true, data: json })
+  } catch (e) {
+    console.error(TAG, 'getSessionMessages error:', e.message)
+    sendResponse(requestId, { ok: false, error: e.message })
+  }
 }
 
 // === SSE/fetch interception ===

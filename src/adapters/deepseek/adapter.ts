@@ -435,6 +435,49 @@ export class DeepSeekAdapter {
     return false
   }
 
+  // === Session management commands ===
+
+  /** Ensure the localhost:3000 dashboard tab is open (handled by background.js) */
+  async ensureDashboard(): Promise<void> {
+    console.log(`${TAG} ensureDashboard: checking/opening localhost:3000`)
+    const resp = await this.sendCommand('open_dashboard', {}, 10000)
+    if (!resp.ok) {
+      console.warn(`${TAG} ensureDashboard: failed - ${resp.error}`)
+    }
+  }
+
+  /** List recent chat sessions */
+  async listSessions(limit = 10): Promise<unknown> {
+    console.log(`${TAG} listSessions: limit=${limit}`)
+    const resp = await this.sendCommand('list_sessions', { limit }, 15000)
+    if (!resp.ok) throw new AdapterError('COMMAND_FAILED', resp.error || 'List sessions failed', true)
+    return resp.data
+  }
+
+  /** Delete a chat session by ID */
+  async deleteSession(sessionId: string): Promise<unknown> {
+    console.log(`${TAG} deleteSession: id=${sessionId}`)
+    const resp = await this.sendCommand('delete_session', { sessionId }, 10000)
+    if (!resp.ok) throw new AdapterError('COMMAND_FAILED', resp.error || 'Delete session failed', true)
+    return resp.data
+  }
+
+  /** Create a new chat session */
+  async newSession(): Promise<unknown> {
+    console.log(`${TAG} newSession`)
+    const resp = await this.sendCommand('new_session', {}, 15000)
+    if (!resp.ok) throw new AdapterError('COMMAND_FAILED', resp.error || 'New session failed', true)
+    return resp.data
+  }
+
+  /** Get messages from a specific session */
+  async getSessionMessages(sessionId: string): Promise<unknown> {
+    console.log(`${TAG} getSessionMessages: id=${sessionId}`)
+    const resp = await this.sendCommand('get_session_messages', { sessionId }, 15000)
+    if (!resp.ok) throw new AdapterError('COMMAND_FAILED', resp.error || 'Get session messages failed', true)
+    return resp.data
+  }
+
   /** Clean up relay listeners */
   destroy(): void {
     if (this.relay && this.onDataHandler) {
