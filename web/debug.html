@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OpenWebAI 调试面板</title>
+<script src="/marked.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; background:#0f0f13; color:#e0e0e0; height:100vh; display:flex; flex-direction:column; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#0f0f13; color:#e0e0e0; height:100vh; display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
 
 /* 顶栏 */
 .topbar { display:flex; align-items:center; gap:12px; padding:10px 16px; background:#1a1a24; border-bottom:1px solid #2a2a3a; flex-shrink:0; }
@@ -19,17 +20,32 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; ba
 .main { display:flex; flex:1; overflow:hidden; gap:0; }
 
 /* 左栏：聊天 */
-.panel-chat { display:flex; flex-direction:column; width:380px; flex-shrink:0; border-right:1px solid #2a2a3a; }
+.panel-chat { display:flex; flex-direction:column; width:950px; flex-shrink:0; border-right:1px solid #2a2a3a; }
 .panel-title { padding:8px 14px; font-size:13px; color:#888; border-bottom:1px solid #1e1e2e; text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; justify-content:space-between; }
 .panel-title .clear-btn { font-size:12px; color:#555; cursor:pointer; background:none; border:none; }
 .panel-title .clear-btn:hover { color:#a78bfa; }
 
 .chat-messages { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
-.msg { padding:8px 10px; border-radius:6px; font-size:14px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
-.msg.user { background:#1e1a3a; color:#c084fc; border-left:3px solid #7c3aed; }
+.msg { padding:8px 10px; border-radius:6px; font-size:14px; line-height:1.5; word-break:break-word; }
+.msg.user { background:#1e1a3a; color:#c084fc; border-left:3px solid #7c3aed; white-space:pre-wrap; }
 .msg.assistant { background:#162016; color:#4ade80; border-left:3px solid #16a34a; }
-.msg.error { background:#200d0d; color:#f87171; border-left:3px solid #dc2626; }
+.msg.error { background:#200d0d; color:#f87171; border-left:3px solid #dc2626; white-space:pre-wrap; }
 .msg.system { background:#141414; color:#777; font-size:12px; text-align:center; border:1px dashed #2a2a3a; }
+/* Markdown styles for assistant messages */
+.msg.assistant h1,.msg.assistant h2,.msg.assistant h3,.msg.assistant h4 { color:#86efac; margin:12px 0 6px; font-size:15px; }
+.msg.assistant h1 { font-size:17px; } .msg.assistant h2 { font-size:16px; }
+.msg.assistant p { margin:6px 0; } .msg.assistant ul,.msg.assistant ol { margin:6px 0 6px 20px; }
+.msg.assistant li { margin:2px 0; }
+.msg.assistant code { background:#0d1a0d; padding:1px 5px; border-radius:3px; color:#a7f3d0; font-size:13px; font-family:'Cascadia Code','Fira Code',monospace; }
+.msg.assistant pre { background:#0a0f0a; border:1px solid #1a3a1a; border-radius:5px; padding:10px; overflow-x:auto; margin:8px 0; }
+.msg.assistant pre code { background:none; padding:0; color:#86efac; }
+.msg.assistant blockquote { border-left:3px solid #2a5a2a; padding-left:12px; color:#6ee7b7; margin:8px 0; }
+.msg.assistant a { color:#60a5fa; text-decoration:underline; }
+.msg.assistant table { border-collapse:collapse; margin:8px 0; } .msg.assistant th,.msg.assistant td { border:1px solid #2a3a2a; padding:4px 10px; font-size:13px; }
+.msg.assistant hr { border:none; border-top:1px solid #2a3a2a; margin:12px 0; }
+.msg.assistant strong { color:#bbf7d0; }
+.msg.streaming::after { content:'▌'; color:#4ade80; animation:blink 0.8s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
 .input-row { display:flex; gap:6px; padding:10px; border-top:1px solid #2a2a3a; flex-shrink:0; }
 .input-row input { flex:1; padding:8px 10px; background:#1a1a2e; border:1px solid #2a2a3a; border-radius:5px; color:#fff; font-size:14px; outline:none; }
@@ -49,7 +65,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; ba
 #tab-sse > div, #tab-raw > div, #tab-stats > div { flex:none; }
 
 /* SSE 日志 */
-.sse-line { padding:3px 8px; border-radius:3px; margin:1px 0; font-size:13px; }
+.sse-line { padding:3px 8px; border-radius:3px; margin:1px 0; font-size:13px; font-family:'Cascadia Code','Fira Code',Consolas,monospace; }
 .sse-line.f1 { color:#4ade80; font-weight:600; }
 .sse-line.f2 { color:#60a5fa; font-weight:600; }
 .sse-line.f3 { color:#fbbf24; font-weight:600; }
@@ -237,9 +253,50 @@ function addChatMsg(role, text) {
   }
   const div = document.createElement('div')
   div.className = 'msg ' + role
-  div.textContent = text
+  if (role === 'assistant') {
+    div.innerHTML = renderMarkdown(text)
+  } else {
+    div.textContent = text
+  }
   container.appendChild(div)
   container.scrollTop = container.scrollHeight
+}
+
+/** Render markdown text to HTML (uses marked.js if available, else fallback) */
+function renderMarkdown(text) {
+  if (typeof marked !== 'undefined') {
+    return marked.parse(text, { breaks: true, gfm: true })
+  }
+  // Fallback: escape HTML + preserve whitespace
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+}
+
+/** Create a streaming assistant message div, returns { div, update, finalize } */
+function createStreamingMsg() {
+  const container = document.getElementById('chatMessages')
+  const div = document.createElement('div')
+  div.className = 'msg assistant streaming'
+  div.innerHTML = '<span style="color:#555">thinking...</span>'
+  container.appendChild(div)
+  container.scrollTop = container.scrollHeight
+
+  let accumulated = ''
+  return {
+    div,
+    update(chunk) {
+      accumulated += chunk
+      div.innerHTML = renderMarkdown(accumulated)
+      div.classList.add('streaming')
+      if (autoScroll) container.scrollTop = container.scrollHeight
+    },
+    finalize() {
+      div.classList.remove('streaming')
+      if (accumulated) {
+        div.innerHTML = renderMarkdown(accumulated)
+      }
+    },
+    get content() { return accumulated }
+  }
 }
 
 function clearChat() {
@@ -316,6 +373,17 @@ function parseAndLogSSE(rawBody, reqIndex) {
                 batchAdded += op.v
               }
             }
+            // F3b: APPEND with fragment array
+            if (op.o === 'APPEND' && Array.isArray(op.v)) {
+              for (const frag of op.v) {
+                if (frag && typeof frag === 'object' && frag.content) {
+                  if (frag.content.length > lastFullContent.length) {
+                    lastFullContent = frag.content
+                    batchAdded += frag.content
+                  }
+                }
+              }
+            }
           }
           addSSELine('f3', `[F3] BATCH ops=${chunk.v.length} added="${batchAdded.slice(0,40)}" → acc=${accumulated.length}`)
           continue
@@ -372,13 +440,16 @@ async function sendMessage() {
   addChatMsg('user', msg)
   isSending = true
   document.getElementById('sendBtn').disabled = true
-  updateStatusBadge('请求中...', '#7c3aed')
+  updateStatusBadge('Streaming...', '#7c3aed')
 
   stats.requests++
   const reqIndex = stats.requests
 
   addSSELine('session', `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  addSSELine('session', `[${new Date().toLocaleTimeString()}] 请求 #${reqIndex}: "${msg.slice(0,50)}"`)
+  addSSELine('session', `[${new Date().toLocaleTimeString()}] 请求 #${reqIndex} (stream): "${msg.slice(0,50)}"`)
+
+  const streamMsg = createStreamingMsg()
+  let fullContent = ''
 
   try {
     const resp = await fetch('/v1/chat/completions', {
@@ -390,57 +461,101 @@ async function sendMessage() {
       body: JSON.stringify({
         model: 'deepseek',
         messages: [{ role: 'user', content: msg }],
+        stream: true,
       }),
     })
 
-    const rawText = await resp.text()
-    addSSELine('raw', `HTTP ${resp.status} (${rawText.length}b)`)
-    addRawBlock(`=== 请求 #${reqIndex} — HTTP ${resp.status} (${rawText.length}b) ===\n${rawText}`, true)
-
     if (!resp.ok) {
+      const errText = await resp.text()
       updateStatusBadge('请求失败', '#dc2626')
-      addSSELine('error', `HTTP Error ${resp.status}: ${rawText.slice(0, 200)}`)
-      addChatMsg('error', `HTTP ${resp.status}: ${rawText.slice(0, 200)}`)
-    } else {
-      try {
-        const json = JSON.parse(rawText)
-        const content = json?.choices?.[0]?.message?.content || ''
+      addSSELine('error', `HTTP Error ${resp.status}: ${errText.slice(0, 200)}`)
+      streamMsg.div.remove()
+      addChatMsg('error', `HTTP ${resp.status}: ${errText.slice(0, 200)}`)
+      return
+    }
 
-        if (content) {
-          addChatMsg('assistant', content)
-          updateStatusBadge('成功', '#16a34a')
-          addSSELine('done', `✅ 最终内容: "${content.slice(0, 100)}" (${content.length}字)`)
-        } else if (json.error) {
-          addChatMsg('error', json.error.message || JSON.stringify(json.error))
-          updateStatusBadge('错误', '#dc2626')
-        } else {
-          addChatMsg('error', '响应无内容: ' + JSON.stringify(json).slice(0, 200))
-          updateStatusBadge('空响应', '#d97706')
+    // Read SSE stream
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let chunkCount = 0
+    let totalBytes = 0
+
+    addSSELine('session', `━━━ 请求 #${reqIndex} SSE 流开始 ━━━`)
+    console.log('[Debug] Stream reader started')
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        console.log('[Debug] Stream reader done, totalBytes=' + totalBytes + ' chunks=' + chunkCount)
+        break
+      }
+
+      totalBytes += value.byteLength
+      const text = decoder.decode(value, { stream: true })
+      console.log('[Debug] Stream chunk: ' + text.length + ' chars, preview: ' + text.slice(0, 120))
+      buffer += text
+
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const jsonStr = line.slice(6).trim()
+        if (!jsonStr || jsonStr === '[DONE]') {
+          if (jsonStr === '[DONE]') addSSELine('done', '→ [DONE]')
+          continue
         }
 
-        // SSE 数据流：用工具弹窗解析结构
-        if (rawText.includes('data: ')) {
-          parseAndLogSSE(rawText, reqIndex)
+        chunkCount++
+        stats.chunks++
+
+        try {
+          const chunk = JSON.parse(jsonStr)
+          const delta = chunk?.choices?.[0]?.delta?.content
+          if (delta) {
+            fullContent += delta
+            stats.chars += delta.length
+            streamMsg.update(delta)
+            if (chunkCount <= 5 || chunkCount % 20 === 0) {
+              addSSELine('f2', `[Stream] chunk#${chunkCount} +${delta.length}字 → total=${fullContent.length}`)
+            }
+          }
+          if (chunk?.choices?.[0]?.finish_reason) {
+            addSSELine('done', `finish_reason: ${chunk.choices[0].finish_reason}`)
+          }
+        } catch (e) {
+          stats.errors++
+          addSSELine('error', `[ERR] ${e.message} | "${jsonStr.slice(0,80)}"`)
         }
-      } catch {
-        addChatMsg('error', '解析失败: ' + rawText.slice(0, 300))
-        updateStatusBadge('解析错误', '#dc2626')
       }
     }
-  } catch (e) {中文
+
+    streamMsg.finalize()
+    updateStats()
+    console.log('[Debug] Stream finished: fullContent=' + fullContent.length + ' chars, chunkCount=' + chunkCount)
+
+    if (fullContent) {
+      updateStatusBadge('成功', '#16a34a')
+      addSSELine('done', `━━━ 流式完成: ${chunkCount} chunks, ${fullContent.length} 字 ━━━`)
+    } else {
+      updateStatusBadge('空响应', '#d97706')
+      streamMsg.div.innerHTML = '<span style="color:#888">(空响应)</span>'
+    }
+
+  } catch (e) {
     updateStatusBadge('网络错误', '#dc2626')
     addSSELine('error', `fetch error: ${e.message}`)
+    streamMsg.div.remove()
     addChatMsg('error', e.message)
+  } finally {
+    isSending = false
+    document.getElementById('sendBtn').disabled = false
+    input.focus()
+    const statsLog = document.getElementById('statsLog')
+    statsLog.innerHTML += `<p style="margin:4px 0; color:#666">[${new Date().toLocaleTimeString()}] 请求#${reqIndex} 完成</p>`
+    updateStats()
   }
-
-  isSending = false
-  document.getElementById('sendBtn').disabled = false
-  input.focus()
-
-  // 更新统计页
-  const statsLog = document.getElementById('statsLog')
-  statsLog.innerHTML += `<p style="margin:4px 0; color:#666">[${new Date().toLocaleTimeString()}] 请求#${reqIndex} 完成</p>`
-  updateStats()
 }
 
 // 服务器 SSE 日志轮询（从本地 sse-log 文件读取）

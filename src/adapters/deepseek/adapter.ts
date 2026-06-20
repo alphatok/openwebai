@@ -62,7 +62,7 @@ export class DeepSeekAdapter {
 
   // Non-chat URLs to ignore (init/tracking APIs)
   private static readonly SKIP_URLS = [
-    '/settings/report', '/pow_challenge', '/chat_session/create',
+    '/settings/report', 'pow_challenge', '/chat_session/create',
     '/user/', '/auth/', 'gator.volces.com', 'hif-dliq',
   ]
 
@@ -74,6 +74,26 @@ export class DeepSeekAdapter {
   private parsedChunkIndex = 0
   private baseline = ''          // F4 snapshot content (基线)
   private incremental = ''       // F1/F2 accumulated tokens (增量)
+
+  constructor() {
+    this.cleanupOldLogs('sse-log-', 10)
+    this.cleanupOldLogs('raw-log-', 10)
+  }
+
+  /** Remove old log files, keeping only the most recent `max` files with the given prefix */
+  private cleanupOldLogs(prefix: string, max: number): void {
+    try {
+      if (!fs.existsSync(this.logDir)) return
+      const files = fs.readdirSync(this.logDir)
+        .filter(f => f.startsWith(prefix) && f.endsWith('.txt'))
+        .map(f => ({ name: f, path: path.join(this.logDir, f), mtime: fs.statSync(path.join(this.logDir, f)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime)
+      for (const file of files.slice(max)) {
+        fs.unlinkSync(file.path)
+        console.log(`${TAG} Cleaned old log: ${file.name}`)
+      }
+    } catch { /* ignore */ }
+  }
 
   private writeLog(tag: string, data: string): void {
     try {
@@ -149,6 +169,9 @@ export class DeepSeekAdapter {
 
   private chatStreamUrl = ''
 
+  /** Snapshot of content after completion — protects against concurrent relay data overwriting */
+  private completedContent = ''
+
   /** Re-parse accumulated chunks whenever new data arrives (incremental) */
   private tryParseContent(): void {
     // Only parse newly arrived rawChunks, append their text to this.incremental
@@ -207,6 +230,7 @@ export class DeepSeekAdapter {
     this.parsedChunkIndex = 0
     this.baseline = ''
     this.incremental = ''
+    this.completedContent = ''
 
     console.log(`${TAG} Submitting (Enter key)...`)
 
@@ -228,6 +252,7 @@ export class DeepSeekAdapter {
     while (Date.now() - start < timeout) {
       // Stream finished → done
       if (this.done) {
+        this.completedContent = this.capturedContent
         console.log(`${TAG} Stream done, content=${this.capturedContent.length} chars`)
         return
       }
@@ -250,6 +275,7 @@ export class DeepSeekAdapter {
         }
 
         if (this.done || stable >= 3) {
+          this.completedContent = this.capturedContent
           console.log(`${TAG} Content stable at ${this.capturedContent.length} chars`)
           return
         }
@@ -263,6 +289,7 @@ export class DeepSeekAdapter {
       await this.sleep(interval)
     }
 
+    this.completedContent = this.capturedContent
     console.warn(`${TAG} TIMEOUT after ${timeout}ms. content=${this.capturedContent.length} chars`)
   }
 
@@ -336,6 +363,17 @@ export class DeepSeekAdapter {
                 this.incremental += op.v
               }
             }
+            // F3b: APPEND with fragment array — e.g. [{"type":"RESPONSE","content":"今天"}]
+            if (op.o === 'APPEND' && Array.isArray(op.v)) {
+              for (const frag of op.v) {
+                if (frag && typeof frag === 'object' && frag.content) {
+                  if (frag.content.length > this.baseline.length) {
+                    this.writeLog('PARSE-F3b', `fragment type=${frag.type} content="${frag.content.slice(0, 30)}" len=${frag.content.length}`)
+                    this.baseline = frag.content
+                  }
+                }
+              }
+            }
           }
           continue
         }
@@ -369,8 +407,10 @@ export class DeepSeekAdapter {
   }
 
   async extractOutput(_prompt?: string): Promise<string> {
-    const trimmed = this.capturedContent.trim()
-    console.log(`${TAG} extractOutput: ${trimmed.length} chars → "${trimmed.slice(0, 100)}"`)
+    // Use the snapshot from waitForCompletion to avoid concurrent relay data overwriting
+    const content = this.completedContent || this.capturedContent
+    const trimmed = content.trim()
+    console.log(`${TAG} extractOutput: capturedContent=${this.capturedContent.length} completedContent=${this.completedContent.length} → ${trimmed.length} chars → "${trimmed.slice(0, 100)}"`)
     return trimmed
   }
 

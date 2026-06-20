@@ -186,10 +186,13 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
         const result = await executeTask(adapter, prompt)
 
         if (result.content) {
+          console.log(`[Gateway] Stream SSE: sending ${result.content.length} chars for task ${taskId}`)
           reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: { content: result.content }, finish_reason: null }] })}\n\n`)
+        } else {
+          console.warn(`[Gateway] Stream SSE: NO content for task ${taskId}, error=${JSON.stringify(result.error)}`)
         }
 
-        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: {}, finish_reason: result.error ? 'stop' : 'stop' }] })}\n\n`)
+        reply.raw.write(`data: ${JSON.stringify({ id: `chatcmpl-${taskId}`, object: 'chat.completion.chunk', created, model: body.model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`)
         reply.raw.write('data: [DONE]\n\n')
         reply.raw.end()
       } else {
