@@ -1,0 +1,797 @@
+event: ready
+data: {"request_message_id":1,"response_message_id":2,"model_type":"default"}
+
+event: update_session
+data: {"updated_at":1781930219.5951679}
+
+data: {"v":{"response":{"message_id":2,"parent_id":1,"model":"","role":"ASSISTANT","thinking_enabled":false,"ban_edit":false,"ban_regenerate":false,"status":"WIP","incomplete_message":null,"accumulated_token_usage":0,"feedback":null,"inserted_at":1781930219.5840628,"search_enabled":true,"fragments":[{"id":2,"type":"RESPONSE","content":"Here","references":[],"stage_id":1}],"conversation_mode":"DEFAULT","has_pending_fragment":false,"auto_continue":false,"search_triggered":false}}}
+
+data: {"p":"response/fragments/-1/content","o":"APPEND","v":"'s"}
+
+data: {"v":" a"}
+
+data: {"v":" simple"}
+
+data: {"v":" Python"}
+
+data: {"v":" function"}
+
+data: {"v":" to"}
+
+data: {"v":" calculate"}
+
+data: {"v":" Fibonacci"}
+
+data: {"v":" numbers"}
+
+data: {"v":":\n\n"}
+
+data: {"v":"```"}
+
+data: {"v":"python"}
+
+data: {"v":"\n"}
+
+data: {"v":"def"}
+
+data: {"v":" fibonacci"}
+
+data: {"v":"(n"}
+
+data: {"v":"):\n"}
+
+data: {"v":"   "}
+
+data: {"v":" \"\"\"\n"}
+
+data: {"v":"   "}
+
+data: {"v":" Calculate"}
+
+data: {"v":" the"}
+
+data: {"v":" nth"}
+
+data: {"v":" Fibonacci"}
+
+data: {"v":" number"}
+
+data: {"v":".\n"}
+
+data: {"v":"    \n"}
+
+data: {"v":"   "}
+
+data: {"v":" Args"}
+
+data: {"v":":\n"}
+
+data: {"v":"       "}
+
+data: {"v":" n"}
+
+data: {"v":":"}
+
+data: {"v":" A"}
+
+data: {"v":" non"}
+
+data: {"v":"-negative"}
+
+data: {"v":" integer"}
+
+data: {"v":" ("}
+
+data: {"v":"position"}
+
+data: {"v":" in"}
+
+data: {"v":" Fibonacci"}
+
+data: {"v":" sequence"}
+
+data: {"v":")\n"}
+
+data: {"v":"    \n"}
+
+data: {"v":"   "}
+
+data: {"v":" Returns"}
+
+data: {"v":":\n"}
+
+data: {"v":"       "}
+
+data: {"v":" The"}
+
+data: {"v":" nth"}
+
+data: {"v":" Fibonacci"}
+
+data: {"v":" number"}
+
+data: {"v":"\n"}
+
+data: {"v":"   "}
+
+data: {"v":" \"\"\"\n"}
+
+data: {"v":"   "}
+
+data: {"v":" if"}
+
+data: {"v":" n"}
+
+data: {"v":" <"}
+
+data: {"v":" "}
+
+data: {"v":"0"}
+
+data: {"v":":\n"}
+
+data: {"v":"       "}
+
+data: {"v":" raise"}
+
+data: {"v":" ValueError"}
+
+data: {"v":"(\""}
+
+data: {"v":"n"}
+
+data: {"v":" must"}
+
+data: {"v":" be"}
+
+data: {"v":" non"}
+
+data: {"v":"-negative"}
+
+data: {"v":"\")\n"}
+
+data: {"v":"   "}
+
+data: {"v":" elif"}
+
+data: {"v":" n"}
+
+data: {"v":" <="}
+
+data: {"v":" "}
+
+data: {"v":"1"}
+
+data: {"v":":\n"}
+
+data: {"v":"       "}
+
+data: {"v":" return"}
+
+data: {"v":" n"}
+
+data: {"v":"\n    \n"}
+
+data: {"v":"   "}
+
+data: {"v":" a"}
+
+data: {"v":","}
+
+data: {"v":" b"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"0"}
+
+data: {"v":","}
+
+data: {"v":" "}
+
+data: {"v":"1"}
+
+data: {"v":"\n"}
+
+data: {"v":"   "}
+
+data: {"v":" for"}
+
+data: {"v":" _"}
+
+data: {"v":" in"}
+
+data: {"v":" range"}
+
+data: {"v":"("}
+
+data: {"v":"2"}
+
+data: {"v":","}
+
+data: {"v":" n"}
+
+data: {"v":" +"}
+
+data: {"v":" "}
+
+data: {"v":"1"}
+
+data: {"v":"):\n"}
+
+data: {"v":"       "}
+
+data: {"v":" a"}
+
+data: {"v":","}
+
+data: {"v":" b"}
+
+data: {"v":" ="}
+
+data: {"v":" b"}
+
+data: {"v":","}
+
+data: {"v":" a"}
+
+data: {"v":" +"}
+
+data: {"v":" b"}
+
+data: {"v":"\n"}
+
+data: {"v":"   "}
+
+data: {"v":" return"}
+
+data: {"v":" b"}
+
+data: {"v":"\n\n"}
+
+data: {"v":"#"}
+
+data: {"v":" Example"}
+
+data: {"v":" usage"}
+
+data: {"v":":\n"}
+
+data: {"v":"if"}
+
+data: {"v":" __"}
+
+data: {"v":"name"}
+
+data: {"v":"__"}
+
+data: {"v":" =="}
+
+data: {"v":" \"__"}
+
+data: {"v":"main"}
+
+data: {"v":"__\":\n"}
+
+data: {"v":"   "}
+
+data: {"v":" for"}
+
+data: {"v":" i"}
+
+data: {"v":" in"}
+
+data: {"v":" range"}
+
+data: {"v":"("}
+
+data: {"v":"10"}
+
+data: {"v":"):\n"}
+
+data: {"v":"       "}
+
+data: {"v":" print"}
+
+data: {"v":"(f"}
+
+data: {"v":"\""}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"({"}
+
+data: {"v":"i"}
+
+data: {"v":"})"}
+
+data: {"v":" ="}
+
+data: {"v":" {"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"(i"}
+
+data: {"v":")}"}
+
+data: {"v":"\")\n"}
+
+data: {"v":"```\n\n"}
+
+data: {"v":"This"}
+
+data: {"v":" function"}
+
+data: {"v":" uses"}
+
+data: {"v":" an"}
+
+data: {"v":" iterative"}
+
+data: {"v":" approach"}
+
+data: {"v":","}
+
+data: {"v":" which"}
+
+data: {"v":" is"}
+
+data: {"v":" efficient"}
+
+data: {"v":" ("}
+
+data: {"v":"O"}
+
+data: {"v":"(n"}
+
+data: {"v":")"}
+
+data: {"v":" time"}
+
+data: {"v":")"}
+
+data: {"v":" and"}
+
+data: {"v":" avoids"}
+
+data: {"v":" recursion"}
+
+data: {"v":" depth"}
+
+data: {"v":" issues"}
+
+data: {"v":"."}
+
+data: {"v":" For"}
+
+data: {"v":" the"}
+
+data: {"v":" first"}
+
+data: {"v":" "}
+
+data: {"v":"10"}
+
+data: {"v":" numbers"}
+
+data: {"v":","}
+
+data: {"v":" it"}
+
+data: {"v":" outputs"}
+
+data: {"v":":\n\n"}
+
+data: {"v":"```\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"0"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"0"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"1"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"1"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"2"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"1"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"3"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"2"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"4"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"3"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"5"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"5"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"6"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"8"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"7"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"13"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"8"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"21"}
+
+data: {"v":"\n"}
+
+data: {"v":"fib"}
+
+data: {"v":"onacci"}
+
+data: {"v":"("}
+
+data: {"v":"9"}
+
+data: {"v":")"}
+
+data: {"v":" ="}
+
+data: {"v":" "}
+
+data: {"v":"34"}
+
+data: {"v":"\n"}
+
+data: {"v":"```\n\n"}
+
+data: {"v":"If"}
+
+data: {"v":" you"}
+
+data: {"v":" need"}
+
+data: {"v":" a"}
+
+data: {"v":" recursive"}
+
+data: {"v":" version"}
+
+data: {"v":" for"}
+
+data: {"v":" educational"}
+
+data: {"v":" purposes"}
+
+data: {"v":","}
+
+data: {"v":" here"}
+
+data: {"v":"'s"}
+
+data: {"v":" that"}
+
+data: {"v":" as"}
+
+data: {"v":" well"}
+
+data: {"v":":\n\n"}
+
+data: {"v":"```"}
+
+data: {"v":"python"}
+
+data: {"v":"\n"}
+
+data: {"v":"def"}
+
+data: {"v":" fibonacci"}
+
+data: {"v":"_rec"}
+
+data: {"v":"ursive"}
+
+data: {"v":"(n"}
+
+data: {"v":"):\n"}
+
+data: {"v":"   "}
+
+data: {"v":" if"}
+
+data: {"v":" n"}
+
+data: {"v":" <"}
+
+data: {"v":" "}
+
+data: {"v":"0"}
+
+data: {"v":":\n"}
+
+data: {"v":"       "}
+
+data: {"v":" raise"}
+
+data: {"v":" ValueError"}
+
+data: {"v":"(\""}
+
+data: {"v":"n"}
+
+data: {"v":" must"}
+
+data: {"v":" be"}
+
+data: {"v":" non"}
+
+data: {"v":"-negative"}
+
+data: {"v":"\")\n"}
+
+data: {"v":"   "}
+
+data: {"v":" elif"}
+
+data: {"v":" n"}
+
+data: {"v":" <="}
+
+data: {"v":" "}
+
+data: {"v":"1"}
+
+data: {"v":":\n"}
+
+data: {"v":"       "}
+
+data: {"v":" return"}
+
+data: {"v":" n"}
+
+data: {"v":"\n"}
+
+data: {"v":"   "}
+
+data: {"v":" return"}
+
+data: {"v":" fibonacci"}
+
+data: {"v":"_rec"}
+
+data: {"v":"ursive"}
+
+data: {"v":"(n"}
+
+data: {"v":" -"}
+
+data: {"v":" "}
+
+data: {"v":"1"}
+
+data: {"v":")"}
+
+data: {"v":" +"}
+
+data: {"v":" fibonacci"}
+
+data: {"v":"_rec"}
+
+data: {"v":"ursive"}
+
+data: {"v":"(n"}
+
+data: {"v":" -"}
+
+data: {"v":" "}
+
+data: {"v":"2"}
+
+data: {"v":")\n"}
+
+data: {"v":"```\n\n"}
+
+data: {"v":"**"}
+
+data: {"v":"Note"}
+
+data: {"v":":**"}
+
+data: {"v":" The"}
+
+data: {"v":" recursive"}
+
+data: {"v":" version"}
+
+data: {"v":" is"}
+
+data: {"v":" much"}
+
+data: {"v":" slower"}
+
+data: {"v":" for"}
+
+data: {"v":" large"}
+
+data: {"v":" n"}
+
+data: {"v":" due"}
+
+data: {"v":" to"}
+
+data: {"v":" exponential"}
+
+data: {"v":" time"}
+
+data: {"v":" complexity"}
+
+data: {"v":" O"}
+
+data: {"v":"("}
+
+data: {"v":"2"}
+
+data: {"v":"^n"}
+
+data: {"v":"),"}
+
+data: {"v":" so"}
+
+data: {"v":" the"}
+
+data: {"v":" iterative"}
+
+data: {"v":" version"}
+
+data: {"v":" is"}
+
+data: {"v":" preferred"}
+
+data: {"v":" for"}
+
+data: {"v":" practical"}
+
+data: {"v":" use"}
+
+data: {"v":"."}
+
+data: {"p":"response","o":"BATCH","v":[{"p":"accumulated_token_usage","v":433},{"p":"quasi_status","v":"FINISHED"}]}
+
+data: {"p":"response/status","o":"SET","v":"FINISHED"}
+
+event: update_session
+data: {"updated_at":1781930223.370105}
+
+event: title
+data: {"content":"Fibonacci function Python"}
+
+event: close
+data: {"click_behavior":"none","auto_resume":false}
+

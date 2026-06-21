@@ -1,0 +1,206 @@
+{
+  "capture_info": {
+    "timestamp": "2026-06-20T04:36:59Z",
+    "page_url": "XXXXXXX",
+    "chat_session_id": "XXXXXXX",
+    "user_prompt": "Hello, write a function in Python for me.",
+    "model_type": "default (Instant)",
+    "browser_context": "deepseek-session (isolated)"
+  },
+  "api_endpoints_summary": {
+    "POST /api/v0/chat/completion": "Core chat API - sends user message, receives SSE streaming response",
+    "POST /api/v0/chat_session/create": "Creates a new chat session",
+    "POST /api/v0/chat/create_pow_challenge": "Proof-of-Work challenge for anti-bot protection",
+    "GET /api/v0/users/current": "Fetch current user profile",
+    "GET /api/v0/chat_session/fetch_page": "List existing chat sessions",
+    "GET /api/v0/client/settings": "Fetch client-side settings (main, model, web_upgrade, banner)",
+    "POST /api/v0/client/settings/report": "Report client settings back"
+  },
+  "requests": [
+    {
+      "reqid": 195,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/chat/completion",
+      "description": "Core chat completion request - the actual AI interaction",
+      "request_body": {
+        "chat_session_id": "XXXXXXX",
+        "parent_message_id": null,
+        "model_type": "default",
+        "prompt": "Hello, write a function in Python for me.",
+        "ref_file_ids": [],
+        "thinking_enabled": false,
+        "search_enabled": true,
+        "action": null,
+        "preempt": false
+      },
+      "response_type": "text/event-stream (SSE)",
+      "response_body_summary": "Streaming AI response with Python fibonacci function code",
+      "request_file": "reqid_195_chat_completion_request.network-request",
+      "response_file": "reqid_195_chat_completion_response.network-response"
+    },
+    {
+      "reqid": 179,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/chat_session/create",
+      "description": "Create a new chat session (first session)",
+      "request_body": {},
+      "response_body": {
+        "chat_session": {
+          "id": "XXXXXXX",
+          "seq_id": 10671239,
+          "agent": "chat",
+          "model_type": "default",
+          "ttl_seconds": 259200
+        }
+      },
+      "request_file": "reqid_179_session_create_request.network-request",
+      "response_file": "reqid_179_session_create_response.network-response"
+    },
+    {
+      "reqid": 196,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/chat_session/create",
+      "description": "Create a new chat session (second session for completion)",
+      "request_body": "{} (empty)",
+      "request_file": "reqid_196_session_create2_request.network-request",
+      "response_file": "reqid_196_session_create2_response.network-response"
+    },
+    {
+      "reqid": 182,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/chat/create_pow_challenge",
+      "description": "Proof-of-Work challenge for anti-bot protection",
+      "response_body": {
+        "challenge": {
+          "algorithm": "DeepSeekHashV1",
+          "challenge": "XXXXXXX",
+          "salt": "XXXXXXX",
+          "difficulty": 144000,
+          "expire_at": 1781923215568,
+          "expire_after": 300000,
+          "target_path": "/api/v0/chat/completion"
+        }
+      },
+      "request_file": "reqid_182_pow_challenge_request.network-request",
+      "response_file": "reqid_182_pow_challenge_response.network-response"
+    },
+    {
+      "reqid": 166,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/chat/create_pow_challenge",
+      "description": "Proof-of-Work challenge (first occurrence)",
+      "response_body": {
+        "algorithm": "DeepSeekHashV1",
+        "difficulty": 144000,
+        "target_path": "/api/v0/chat/completion"
+      },
+      "request_file": "reqid_166_pow_challenge1_request.network-request",
+      "response_file": "reqid_166_pow_challenge1_response.network-response"
+    },
+    {
+      "reqid": 160,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/users/current",
+      "description": "Fetch current user profile info",
+      "response_body_summary": "User profile with id, email, mobile, WECHAT provider info",
+      "request_file": "reqid_160_users_current_response.network-response"
+    },
+    {
+      "reqid": 164,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/chat_session/fetch_page?lte_cursor.pinned=false",
+      "description": "Fetch list of chat sessions",
+      "response_body_summary": "Paginated list of ~100 chat sessions with titles and timestamps",
+      "request_file": "reqid_164_fetch_page_response.network-response"
+    },
+    {
+      "reqid": 153,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/client/settings?scope=main",
+      "description": "Fetch main client settings",
+      "response_body": {
+        "sse_auto_resume_timeout": 3000,
+        "chat_hcaptcha": true,
+        "completion_request_timeout_ms": 60000,
+        "search_state_on_launch": "XXXXXXX",
+        "normal_history_and_file_token_limit": 890880,
+        "pow_prefetch": true,
+        "pow_prefetch_count": 1,
+        "conversation_search_enabled": true
+      },
+      "request_file": "reqid_153_settings_main_response.network-response"
+    },
+    {
+      "reqid": 154,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/client/settings?scope=model",
+      "description": "Fetch model configurations",
+      "response_body_summary": "Model configs: default(Instant), expert, vision - with file support, token limits, features",
+      "request_file": "reqid_154_settings_model_response.network-response"
+    },
+    {
+      "reqid": 155,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/client/settings?scope=web_upgrade",
+      "description": "Fetch web upgrade settings",
+      "request_file": "reqid_155_settings_webupgrade_response.network-response"
+    },
+    {
+      "reqid": 165,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/client/settings?scope=banner",
+      "description": "Fetch banner configuration",
+      "request_file": "reqid_165_settings_banner_response.network-response"
+    },
+    {
+      "reqid": 190,
+      "method": "XXXXXXX",
+      "url": "https://chat.deepseek.com/api/v0/client/settings/report",
+      "description": "Report client settings back to server",
+      "request_file": "reqid_190_settings_report_request.network-request",
+      "response_file": "reqid_190_settings_report_response.network-response"
+    }
+  ],
+  "authentication": {
+    "method": "Bearer Token",
+    "token": "XXXXXXX",
+    "auth_provider": "XXXXXXX",
+    "user_name": "XXXXXXX"
+  },
+  "anti_bot_mechanisms": {
+    "proof_of_work": {
+      "algorithm": "DeepSeekHashV1",
+      "header_name": "x-ds-pow-response",
+      "target_path": "/api/v0/chat/completion",
+      "difficulty": 144000,
+      "expire_after_ms": 300000
+    },
+    "hif_headers": {
+      "x-hif-leim": "Anti-bot fingerprint header",
+      "x-hif-dliq": "Anti-bot fingerprint header"
+    },
+    "challenge_endpoints": {
+      "hif-leim.deepseek.com": "GET /query - anti-bot challenge",
+      "hif-dliq.deepseek.com": "GET /query - anti-bot challenge"
+    }
+  },
+  "streaming_protocol": {
+    "method": "Server-Sent Events (SSE)",
+    "content_type": "text/event-stream",
+    "event_types": [
+      "ready - initial connection confirmation",
+      "update_session - session update event",
+      "data (v:) - streaming content chunks",
+      "data (p:/response/fragments/-1/content, o:APPEND) - fragment append"
+    ],
+    "fields": {
+      "request_message_id": 1,
+      "response_message_id": 2,
+      "model_type": "default",
+      "role": "XXXXXXX",
+      "thinking_enabled": false,
+      "search_enabled": true,
+      "conversation_mode": "XXXXXXX"
+    }
+  }
+}

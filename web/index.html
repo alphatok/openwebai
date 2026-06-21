@@ -16,8 +16,9 @@
   </div>
 
   <div class="status-bar">
-    <div class="status-dot"></div>
-    <span data-i18n="status">Server running at <code>http://localhost:3000</code></span>
+    <div class="status-dot offline" id="statusDot"></div>
+    <span id="statusText">Server running at <code>http://localhost:3000</code></span>
+    <span class="heartbeat-text" id="heartbeatText"></span>
   </div>
 
   <!-- Step 1 -->

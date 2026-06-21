@@ -157,9 +157,55 @@ const ConnectionTest = {
   },
 }
 
+/**
+ * Status bar heartbeater — polls /health every 3s, updates dot & text.
+ */
+const StatusBar = {
+  /** Refresh status from /health */
+  async refresh() {
+    const dot = document.getElementById('statusDot')
+    const text = document.getElementById('statusText')
+    const hb = document.getElementById('heartbeatText')
+    if (!dot || !text || !hb) return
+
+    try {
+      const resp = await fetch('/health')
+      const data = await resp.json()
+      const relay = data.relay
+
+      if (relay?.connected) {
+        dot.className = 'status-dot online'
+        text.innerHTML = LangController.t().status
+        hb.textContent = relay.lastSeenStr ? '\u2764\ufe0f ' + relay.lastSeenStr : ''
+        hb.style.color = '#4ade80'
+      } else if (relay?.lastSeen) {
+        // Was connected, now stale
+        dot.className = 'status-dot disconnected'
+        text.innerHTML = '\u6d4f\u89c8\u5668\u63d2\u4ef6\u672a\u8fde\u63a5'
+        hb.textContent = relay.lastSeenStr ? '\u6700\u540e\u5fc3\u8df3: ' + relay.lastSeenStr : ''
+        hb.style.color = '#f59e0b'
+      } else {
+        dot.className = 'status-dot disconnected'
+        text.innerHTML = '\u7b49\u5f85\u63d2\u4ef6\u8fde\u63a5\u2026'
+        hb.textContent = ''
+      }
+    } catch {
+      dot.className = 'status-dot offline'
+      text.innerHTML = '\u670d\u52a1\u79bb\u7ebf'
+      hb.textContent = ''
+    }
+  },
+
+  start() {
+    this.refresh()
+    setInterval(() => this.refresh(), 3000)
+  },
+}
+
 // Expose to inline onclick handlers
 window.setLang = (lang) => LangController.set(lang)
 window.runTest = () => ConnectionTest.run()
 
 // Init
 LangController.autoDetect()
+StatusBar.start()

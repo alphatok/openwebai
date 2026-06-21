@@ -21,16 +21,20 @@ export interface CommandResponse {
   title?: string
 }
 
+export interface RelayStatus {
+  connected: boolean
+  lastSeen: number | null
+}
+
 /**
  * WebSocket Relay Server - bidirectional bridge
- * Extension connects here and:
- * - Forwards intercepted SSE/fetch data from DeepSeek page
- * - Receives commands from Node.js (input_text, click_submit, etc.)
  */
 export class WebSocketRelay extends EventEmitter {
   private wss: WebSocketServer | null = null
   private client: WebSocket | null = null
   private port: number
+  private lastSeen: number | null = null
+  private pingInterval: NodeJS.Timeout | null = null
 
   constructor(port = 18765) {
     super()
@@ -45,18 +49,31 @@ export class WebSocketRelay extends EventEmitter {
       this.wss.on('connection', (ws, req) => {
         console.log(`${TAG} Extension connected from ${req.socket.remoteAddress}`)
         this.client = ws
+        this.lastSeen = Date.now()
 
         ws.on('message', (raw) => {
           const rawStr = raw.toString()
           try {
             const msg = JSON.parse(rawStr)
 
-            if (msg.type === 'ping') return
+            if (msg.type === 'ping') {
+              this.lastSeen = Date.now()
+              // pong
+              ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }))
+              return
+            }
+
+            if (msg.type === 'pong') {
+              this.lastSeen = Date.now()
+              return
+            }
 
             if (msg.type === 'sse_data' || msg.type === 'fetch_data' || msg.type === 'fetch_done') {
+              this.lastSeen = Date.now()
               console.log(`${TAG} Data: type=${msg.type}, url=${msg.url?.slice(0, 60)}, len=${msg.data?.length || 0}`)
               this.emit('data', msg as InterceptedData)
             } else if (msg.type === 'command_response') {
+              this.lastSeen = Date.now()
               console.log(`${TAG} Command response: requestId=${msg.requestId}, ok=${msg.ok}`)
               this.emit('command_response', msg as CommandResponse)
             }
@@ -78,6 +95,13 @@ export class WebSocketRelay extends EventEmitter {
         })
       })
 
+      // Setup heartbeat interval (check every 5s)
+      this.pingInterval = setInterval(() => {
+        if (this.client?.readyState === WebSocket.OPEN) {
+          this.client.send(JSON.stringify({ type: 'ping', ts: Date.now() }))
+        }
+      }, 5000)
+
       this.wss.on('listening', () => {
         console.log(`${TAG} Listening on ws://localhost:${this.port}`)
         resolve()
@@ -88,6 +112,16 @@ export class WebSocketRelay extends EventEmitter {
         reject(err)
       })
     })
+  }
+
+  /** Get current relay status */
+  getStatus(): RelayStatus {
+    const isConnected = this.client?.readyState === WebSocket.OPEN
+    const stale = this.lastSeen && (Date.now() - this.lastSeen > 90000)
+    return {
+      connected: isConnected && !stale,
+      lastSeen: this.lastSeen,
+    }
   }
 
   /** Whether extension client is connected */
@@ -108,6 +142,10 @@ export class WebSocketRelay extends EventEmitter {
 
   /** Stop relay server */
   async stop(): Promise<void> {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval)
+      this.pingInterval = null
+    }
     if (this.client) {
       this.client.close()
       this.client = null

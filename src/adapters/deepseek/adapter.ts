@@ -1,4 +1,4 @@
-import type { SiteConfig } from '../../types/adapter.js'
+import type { SiteConfig, ISiteAdapter } from '../../types/adapter.js'
 import { AdapterError } from '../../errors/adapter-error.js'
 import { WebSocketRelay } from '../../bridge/ws-relay.js'
 import type { InterceptedData, CommandResponse } from '../../bridge/ws-relay.js'
@@ -18,9 +18,17 @@ const TAG = '[DS]'
  * 3. Adapter accumulates SSE chunks and parses DeepSeek's SSE format
  * 4. No Playwright request interception or parallel fetch needed
  */
-export class DeepSeekAdapter {
+export class DeepSeekAdapter implements ISiteAdapter {
   readonly siteId = 'deepseek'
   readonly config: SiteConfig = configJson as unknown as SiteConfig
+
+  async init(_page: any): Promise<void> {
+    return
+  }
+
+  isReady(): boolean {
+    return this.relay?.isClientConnected() ?? false
+  }
 
   private capturedContent = ''
   private rawChunks: string[] = []

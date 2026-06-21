@@ -45,11 +45,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     setTimeout(() => {
       if (!responded) {
-        console.error(TAG, '❌ Command timed out (9s), cmd=' + message.cmd)
+        console.error(TAG, '❌ Command timed out (25s), cmd=' + message.cmd)
         window.removeEventListener('message', handler)
         sendResponse({ ok: false, error: 'Command timed out in content script bridge' })
       }
-    }, 9000)
+    }, 25000)
 
     return true
   }

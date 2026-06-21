@@ -75,9 +75,19 @@ function connect() {
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data)
-      if (data.type !== 'ping') {
-        console.log(TAG, '<<< Received from relay: type=' + data.type + (data.cmd ? ' cmd=' + data.cmd : '') + (data.requestId ? ' reqId=' + data.requestId.slice(0, 8) : ''))
+      if (data.type === 'ping') {
+        // Response with pong
+        ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }))
+        return
       }
+      if (data.type === 'pong') {
+        // Keep-alive acknowledgement from relay
+        console.log(TAG, '<<< Received pong from relay')
+        return
+      }
+      
+      console.log(TAG, '<<< Received from relay: type=' + data.type + (data.cmd ? ' cmd=' + data.cmd : '') + (data.requestId ? ' reqId=' + data.requestId.slice(0, 8) : ''))
+      
       if (data.type === 'command') {
         handleCommandFromRelay(data)
       }

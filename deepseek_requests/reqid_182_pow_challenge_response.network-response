@@ -1,0 +1,1 @@
+{"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":{"challenge":{"algorithm":"DeepSeekHashV1","challenge":"XXXXXXX","salt":"XXXXXXX","signature":"XXXXXXX","difficulty":144000,"expire_at":1781923215809,"expire_after":300000,"target_path":"/api/v0/file/upload_file"}}}}

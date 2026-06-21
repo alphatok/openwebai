@@ -30,6 +30,12 @@ export interface ISiteAdapter {
   extractOutput(prompt?: string): Promise<string>
   isGenerating(): boolean
   hasCaptcha(): boolean
+
+  // Session management
+  listSessions(limit?: number): Promise<unknown>
+  newSession(): Promise<unknown>
+  deleteSession(sessionId: string): Promise<unknown>
+  getSessionMessages(sessionId: string): Promise<unknown>
 }
 
 /** Browser driver interface */

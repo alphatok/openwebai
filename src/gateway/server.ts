@@ -101,7 +101,7 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
   // CORS
   await app.register(import('@fastify/cors'), {
     origin: true,
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   })
 
   // Serve static files from web/
@@ -121,7 +121,19 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
   })
 
   // Health check
-  app.get('/health', async () => ({ status: 'ok' }))
+  app.get('/health', async () => {
+    const relayStatus = relay.getStatus()
+    return {
+      status: 'ok',
+      relay: {
+        connected: relayStatus.connected,
+        lastSeen: relayStatus.lastSeen,
+        lastSeenStr: relayStatus.lastSeen
+          ? new Date(relayStatus.lastSeen).toLocaleTimeString('zh-CN', { hour12: false })
+          : 'never'
+      }
+    }
+  })
 
   // Debug: return latest SSE log file content
   app.get('/debug/sse-log', async (_req, reply) => {
@@ -442,7 +454,6 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
     }
     const limit = Number((request.query as Record<string, string>).limit) || 10
     try {
-      await adapter.ensureDashboard()
       const data = await adapter.listSessions(limit)
       return { sessions: data }
     } catch (err) {
@@ -458,7 +469,6 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
       return
     }
     try {
-      await adapter.ensureDashboard()
       const data = await adapter.newSession()
       return { session: data }
     } catch (err) {
@@ -475,7 +485,6 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
     }
     const { id } = request.params as { id: string }
     try {
-      await adapter.ensureDashboard()
       await adapter.deleteSession(id)
       return { ok: true }
     } catch (err) {
@@ -492,7 +501,6 @@ export async function createGateway(adapter: DeepSeekAdapter, relay: WebSocketRe
     }
     const { id } = request.params as { id: string }
     try {
-      await adapter.ensureDashboard()
       // 1. Get session messages
       const messagesData = await adapter.getSessionMessages(id) as Record<string, unknown>
       const messages = extractMessagesText(messagesData)
